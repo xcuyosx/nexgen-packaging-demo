@@ -144,6 +144,14 @@ const logoPlacementOptions = [
 
 type LogoSide = (typeof logoPlacementOptions)[number]['id']
 
+type LogoAdjustment = {
+  fit: 'contain' | 'cover'
+  size: number
+  x: number
+  y: number
+  rotate: number
+}
+
 type BoxSpec = {
   length: number
   width: number
@@ -159,6 +167,14 @@ const materialColors: Record<(typeof boxMaterials)[number], string> = {
   'White corrugate': '#e9ece5',
   'Recycled paperboard': '#9b8d70',
   'Premium SBS': '#f8f6ef',
+}
+
+const defaultLogoAdjustment: LogoAdjustment = {
+  fit: 'contain',
+  size: 64,
+  x: 0,
+  y: 0,
+  rotate: 0,
 }
 
 function App() {
@@ -193,6 +209,14 @@ function App() {
     left: null,
     right: null,
     top: null,
+  })
+  const [activeLogoSide, setActiveLogoSide] = useState<LogoSide>('front')
+  const [logoAdjustments, setLogoAdjustments] = useState<Record<LogoSide, LogoAdjustment>>({
+    front: defaultLogoAdjustment,
+    back: defaultLogoAdjustment,
+    left: defaultLogoAdjustment,
+    right: defaultLogoAdjustment,
+    top: defaultLogoAdjustment,
   })
   const [boxSpec, setBoxSpec] = useState<BoxSpec>({
     length: 12,
@@ -240,6 +264,7 @@ function App() {
 
   const estimatedCases = Math.max(1, Math.ceil(boxSpec.quantity / 100))
   const selectedLogoSides = logoPlacementOptions.filter((side) => logoSides[side.id])
+  const visibleLogoSide = logoSides[activeLogoSide] ? activeLogoSide : selectedLogoSides[0]?.id
 
   const updateBoxNumber = (field: 'length' | 'width' | 'height' | 'quantity', value: number) => {
     const limits = {
@@ -288,12 +313,40 @@ function App() {
       }
       return { ...current, [side]: imageUrl }
     })
+    setActiveLogoSide(side)
+  }
+
+  const updateLogoAdjustment = <Key extends keyof LogoAdjustment>(
+    side: LogoSide,
+    key: Key,
+    value: LogoAdjustment[Key],
+  ) => {
+    setLogoAdjustments((current) => ({
+      ...current,
+      [side]: {
+        ...current[side],
+        [key]: value,
+      },
+    }))
   }
 
   const renderBoxLogo = (side: LogoSide) => {
     if (!logoSides[side]) return null
     if (logoUploads[side]) {
-      return <img className="box-logo-image" src={logoUploads[side]} alt={`${side} logo preview`} />
+      const adjustment = logoAdjustments[side]
+      return (
+        <img
+          className="box-logo-image"
+          src={logoUploads[side]}
+          alt={`${side} logo preview`}
+          style={{
+            width: `${adjustment.size}%`,
+            height: `${adjustment.size}%`,
+            objectFit: adjustment.fit,
+            transform: `translate(${adjustment.x}%, ${adjustment.y}%) rotate(${adjustment.rotate}deg)`,
+          }}
+        />
+      )
     }
 
     return <span>YOUR LOGO</span>
@@ -622,6 +675,100 @@ function App() {
                               />
                             </label>
                           ))}
+                        </div>
+                      )}
+                      {visibleLogoSide && logoUploads[visibleLogoSide] && (
+                        <div className="logo-adjustment-panel">
+                          <label>
+                            Editing side
+                            <select
+                              value={visibleLogoSide}
+                              onChange={(event) => setActiveLogoSide(event.target.value as LogoSide)}
+                            >
+                              {selectedLogoSides.map((side) => (
+                                <option key={side.id} value={side.id}>
+                                  {side.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            Fit
+                            <select
+                              value={logoAdjustments[visibleLogoSide].fit}
+                              onChange={(event) =>
+                                updateLogoAdjustment(
+                                  visibleLogoSide,
+                                  'fit',
+                                  event.target.value as LogoAdjustment['fit'],
+                                )
+                              }
+                            >
+                              <option value="contain">Fit inside</option>
+                              <option value="cover">Fill area</option>
+                            </select>
+                          </label>
+                          <label>
+                            Size
+                            <input
+                              max={120}
+                              min={24}
+                              type="range"
+                              value={logoAdjustments[visibleLogoSide].size}
+                              onChange={(event) =>
+                                updateLogoAdjustment(visibleLogoSide, 'size', Number(event.target.value))
+                              }
+                            />
+                          </label>
+                          <div className="logo-slider-grid">
+                            <label>
+                              X position
+                              <input
+                                max={60}
+                                min={-60}
+                                type="range"
+                                value={logoAdjustments[visibleLogoSide].x}
+                                onChange={(event) =>
+                                  updateLogoAdjustment(visibleLogoSide, 'x', Number(event.target.value))
+                                }
+                              />
+                            </label>
+                            <label>
+                              Y position
+                              <input
+                                max={60}
+                                min={-60}
+                                type="range"
+                                value={logoAdjustments[visibleLogoSide].y}
+                                onChange={(event) =>
+                                  updateLogoAdjustment(visibleLogoSide, 'y', Number(event.target.value))
+                                }
+                              />
+                            </label>
+                          </div>
+                          <label>
+                            Rotate
+                            <input
+                              max={180}
+                              min={-180}
+                              type="range"
+                              value={logoAdjustments[visibleLogoSide].rotate}
+                              onChange={(event) =>
+                                updateLogoAdjustment(visibleLogoSide, 'rotate', Number(event.target.value))
+                              }
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLogoAdjustments((current) => ({
+                                ...current,
+                                [visibleLogoSide]: defaultLogoAdjustment,
+                              }))
+                            }
+                          >
+                            Reset logo
+                          </button>
                         </div>
                       )}
                     </div>

@@ -805,6 +805,41 @@ main {
   font-size: 12px;
 }
 
+.logo-adjustment-panel {
+  padding: 12px;
+  border: 1px solid rgba(20, 47, 44, 0.1);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  background: #ffffff;
+}
+
+.box-controls .logo-adjustment-panel label {
+  gap: 6px;
+}
+
+.logo-slider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.logo-adjustment-panel input[type='range'] {
+  min-height: 28px;
+  padding: 0;
+  accent-color: var(--green);
+}
+
+.logo-adjustment-panel button {
+  min-height: 38px;
+  border: 1px solid rgba(10, 106, 86, 0.16);
+  border-radius: 8px;
+  color: var(--green);
+  background: var(--soft-green);
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .box-preview-panel {
   min-height: 560px;
   display: grid;
