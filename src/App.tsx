@@ -187,6 +187,13 @@ function App() {
     right: false,
     top: false,
   })
+  const [logoUploads, setLogoUploads] = useState<Record<LogoSide, string | null>>({
+    front: null,
+    back: null,
+    left: null,
+    right: null,
+    top: null,
+  })
   const [boxSpec, setBoxSpec] = useState<BoxSpec>({
     length: 12,
     width: 9,
@@ -269,6 +276,27 @@ function App() {
     if (!logoSides[side] && boxSpec.print === 'No print') {
       setBoxSpec((current) => ({ ...current, print: 'One-color logo' }))
     }
+  }
+
+  const handleLogoUpload = (side: LogoSide, file: File | undefined) => {
+    if (!file) return
+
+    const imageUrl = URL.createObjectURL(file)
+    setLogoUploads((current) => {
+      if (current[side]) {
+        URL.revokeObjectURL(current[side])
+      }
+      return { ...current, [side]: imageUrl }
+    })
+  }
+
+  const renderBoxLogo = (side: LogoSide) => {
+    if (!logoSides[side]) return null
+    if (logoUploads[side]) {
+      return <img className="box-logo-image" src={logoUploads[side]} alt={`${side} logo preview`} />
+    }
+
+    return <span>YOUR LOGO</span>
   }
 
   const togglePrint = (productId: string) => {
@@ -586,8 +614,12 @@ function App() {
                           {selectedLogoSides.map((side) => (
                             <label className="side-logo-upload" key={side.id}>
                               <Upload size={16} />
-                              <span>{side.label} logo file</span>
-                              <input type="file" accept=".ai,.eps,.pdf,.png,.jpg,.jpeg,.svg" />
+                              <span>{logoUploads[side.id] ? `${side.label} logo loaded` : `${side.label} logo file`}</span>
+                              <input
+                                type="file"
+                                accept=".png,.jpg,.jpeg,.svg,.webp"
+                                onChange={(event) => handleLogoUpload(side.id, event.target.files?.[0])}
+                              />
                             </label>
                           ))}
                         </div>
@@ -648,20 +680,20 @@ function App() {
               >
                 <div className="box-model" style={boxPreviewStyle} aria-label="Live custom box preview">
                   <div className="box-face box-face-front">
-                    {logoSides.front && <span>YOUR LOGO</span>}
+                    {renderBoxLogo('front')}
                   </div>
                   <div className="box-face box-face-back">
-                    {logoSides.back && <span>YOUR LOGO</span>}
+                    {renderBoxLogo('back')}
                   </div>
                   <div className="box-face box-face-top">
-                    {logoSides.top && <span>YOUR LOGO</span>}
+                    {renderBoxLogo('top')}
                   </div>
                   <div className="box-face box-face-bottom" />
                   <div className="box-face box-face-side box-face-right">
-                    {logoSides.right && <span>YOUR LOGO</span>}
+                    {renderBoxLogo('right')}
                   </div>
                   <div className="box-face box-face-side box-face-left">
-                    {logoSides.left && <span>YOUR LOGO</span>}
+                    {renderBoxLogo('left')}
                   </div>
                   <div className="box-lid box-lid-left" />
                   <div className="box-lid box-lid-right" />

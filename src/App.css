@@ -889,6 +889,17 @@ main {
   backdrop-filter: blur(2px);
 }
 
+.box-logo-image {
+  width: min(58%, 150px);
+  max-height: 58%;
+  object-fit: contain;
+  padding: 8px;
+  border: 2px solid rgba(16, 39, 35, 0.2);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
 .box-face-top {
   left: 50%;
   top: 50%;
