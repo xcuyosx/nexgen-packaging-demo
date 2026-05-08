@@ -993,7 +993,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
   }
 
   return (
-    <div className={`app-shell ${workspacePage === 'catalog' ? 'catalog-shell' : ''}`}>
+    <div className="app-shell">
       <main className="crm-screen" id="top">
         <header className="topbar">
           <div className="topbar-copy">

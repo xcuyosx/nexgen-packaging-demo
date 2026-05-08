@@ -2,13 +2,6 @@
   min-height: 100vh;
   color: var(--ink);
   background:
-    radial-gradient(circle at 92% 4%, rgba(241, 95, 63, 0.16), transparent 27%),
-    linear-gradient(180deg, #071816 0, #102723 360px, #f6f4ed 361px),
-    var(--page);
-}
-
-.app-shell.catalog-shell {
-  background:
     linear-gradient(180deg, #071816 0, #102723 360px, #edf3ed 361px),
     #edf3ed;
 }
