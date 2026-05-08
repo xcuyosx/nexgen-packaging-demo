@@ -342,7 +342,7 @@ h3 {
   background: #eff6f2;
 }
 
-.lead-row span:not(.priority-dot) {
+.lead-row span:not(.priority-dot):not(.product-status-dot) {
   flex: 1;
   min-width: 0;
 }
@@ -365,6 +365,19 @@ h3 {
   font-weight: 800;
 }
 
+.product-filters {
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.54fr);
+}
+
+.product-row em {
+  display: block;
+  margin-top: 4px;
+  color: var(--green);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .priority-dot {
   flex: none;
   width: 12px;
@@ -379,6 +392,23 @@ h3 {
 }
 
 .priority-dot.cold {
+  background: #8aa0a0;
+}
+
+.product-status-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 7px;
+  background: var(--green);
+  border-radius: 999px;
+}
+
+.product-status-dot.draft {
+  background: #d8a13a;
+}
+
+.product-status-dot.paused {
   background: #8aa0a0;
 }
 
@@ -1076,6 +1106,49 @@ h3 {
 .catalog-status.paused {
   color: #42504b;
   background: #e6e1d5;
+}
+
+.product-detail-heading > div > p:not(.eyebrow) {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.catalog-profile-section {
+  display: grid;
+  gap: 16px;
+}
+
+.catalog-profile-overview {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.catalog-profile-image {
+  min-height: 150px;
+}
+
+.catalog-profile-copy {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.catalog-profile-copy h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(28px, 3.2vw, 46px);
+  line-height: 1;
+}
+
+.catalog-profile-copy p {
+  max-width: 700px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .catalog-summary-grid {
@@ -1899,6 +1972,7 @@ h3 {
   .product-card-heading,
   .catalog-heading,
   .catalog-card-preview,
+  .catalog-profile-overview,
   .top-products-heading,
   .capture-hero,
   .client-edit-heading,
@@ -1965,6 +2039,10 @@ h3 {
   }
 
   .catalog-card-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-profile-overview {
     grid-template-columns: 1fr;
   }
 

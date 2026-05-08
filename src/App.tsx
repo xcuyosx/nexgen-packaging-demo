@@ -33,6 +33,7 @@ type ActivityEntry = {
 type View = 'crm' | 'capture'
 type WorkspacePage = 'customers' | 'catalog'
 type ProfilePage = 'overview' | 'account' | 'products' | 'contact' | 'notes' | 'activity' | 'email' | 'misys'
+type ProductCatalogPage = 'overview' | 'details' | 'pricing' | 'supplier' | 'notes'
 type ProductRankMode = 'dollars' | 'units'
 type ActiveStatus = 'Prospect' | 'Active Customer' | 'Dormant' | 'Do Not Contact'
 type CatalogStatus = 'Active' | 'Draft' | 'Paused'
@@ -659,6 +660,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
   const [productCatalog, setProductCatalog] = useState<ProductCatalogItem[]>(() => (readSession()?.demo ? seedProductCatalog : loadLocalProductCatalog()))
   const [workspacePage, setWorkspacePage] = useState<WorkspacePage>('customers')
   const [selectedId, setSelectedId] = useState('')
+  const [selectedProductId, setSelectedProductId] = useState('')
   const [query, setQuery] = useState('')
   const [eventFilter, setEventFilter] = useState('Event')
   const [sortDir, setSortDir] = useState<'az' | 'za'>('az')
@@ -716,11 +718,13 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
         if (cancelled) return
         if (leadResult.refreshed) persistSession(leadResult.activeSession)
         if (catalogResult.refreshed) persistSession(catalogResult.activeSession)
+        const nextCatalog = catalogResult.remote.length ? catalogResult.remote : seedProductCatalog
         setLeads(leadResult.remote)
-        setProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
+        setProductCatalog(nextCatalog)
         setSelectedId(leadResult.remote[0]?.id ?? '')
+        setSelectedProductId(nextCatalog[0]?.id ?? '')
         saveLocalLeads(leadResult.remote)
-        saveLocalProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
+        saveLocalProductCatalog(nextCatalog)
         setSyncStatus('Connected')
       })
       .catch((error) => {
@@ -807,6 +811,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
     setLeads(seedLeads)
     setProductCatalog(seedProductCatalog)
     setSelectedId(seedLeads[0]?.id || '')
+    setSelectedProductId(seedProductCatalog[0]?.id || '')
     setSession(demoSession)
     setSyncStatus('Demo preview - local sample data')
     localStorage.setItem(sessionKey, JSON.stringify(demoSession))
@@ -818,6 +823,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
       setLeads(seedLeads)
       setProductCatalog(seedProductCatalog)
       setSelectedId((current) => (seedLeads.some((lead) => lead.id === current) ? current : seedLeads[0]?.id ?? ''))
+      setSelectedProductId((current) => (seedProductCatalog.some((product) => product.id === current) ? current : seedProductCatalog[0]?.id ?? ''))
       setSyncStatus('Demo preview - local sample data')
       return
     }
@@ -826,11 +832,13 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
       const [leadResult, catalogResult] = await Promise.all([fetchLeadsWithSession(session), fetchCatalogWithSession(session)])
       if (leadResult.refreshed) persistSession(leadResult.activeSession)
       if (catalogResult.refreshed) persistSession(catalogResult.activeSession)
+      const nextCatalog = catalogResult.remote.length ? catalogResult.remote : seedProductCatalog
       setLeads(leadResult.remote)
-      setProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
+      setProductCatalog(nextCatalog)
       saveLocalLeads(leadResult.remote)
-      saveLocalProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
+      saveLocalProductCatalog(nextCatalog)
       setSelectedId((current) => (leadResult.remote.some((lead) => lead.id === current) ? current : leadResult.remote[0]?.id ?? ''))
+      setSelectedProductId((current) => (nextCatalog.some((product) => product.id === current) ? current : nextCatalog[0]?.id ?? ''))
       setSyncStatus('Connected')
     } catch {
       setSyncStatus('Offline - showing local backup')
@@ -877,6 +885,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
     })
     const nextCatalog = [nextProduct, ...productCatalog]
     setProductCatalog(nextCatalog)
+    setSelectedProductId(nextProduct.id)
     saveLocalProductCatalog(nextCatalog)
 
     if (session && !session.demo) {
@@ -1048,7 +1057,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
         </section>
 
         {workspacePage === 'catalog' ? (
-          <ProductCatalogManager catalog={productCatalog} onUpdate={updateCatalogItem} />
+          <ProductCatalogManager catalog={productCatalog} selectedId={selectedProductId} onSelect={setSelectedProductId} onUpdate={updateCatalogItem} />
         ) : (
           <section className="workspace">
             <aside className="lead-list-panel">
@@ -1477,9 +1486,13 @@ function TopProductsPanel({
 
 function ProductCatalogManager({
   catalog,
+  selectedId,
+  onSelect,
   onUpdate,
 }: {
   catalog: ProductCatalogItem[]
+  selectedId: string
+  onSelect: (id: string) => void
   onUpdate: (id: string, patch: Partial<ProductCatalogItem>) => void
 }) {
   const [catalogQuery, setCatalogQuery] = useState('')
@@ -1495,146 +1508,288 @@ function ProductCatalogManager({
       })
       .sort((a, b) => a.productName.localeCompare(b.productName))
   }, [catalog, catalogQuery, categoryFilter])
+  const selectedProduct = catalog.find((product) => product.id === selectedId) ?? visibleCatalog[0] ?? catalog[0]
+
+  useEffect(() => {
+    if (!catalog.length) {
+      if (selectedId) onSelect('')
+      return
+    }
+
+    if (!catalog.some((product) => product.id === selectedId)) {
+      onSelect(catalog[0].id)
+    }
+  }, [catalog, onSelect, selectedId])
 
   return (
-    <section className="catalog-workspace">
-      <div className="catalog-heading">
-        <div>
-          <p className="eyebrow">Product Database</p>
-          <h2>Products We Offer</h2>
-          <p>Maintain the master SKU catalog your customer quotes and jobs should pull from.</p>
+    <section className="workspace product-catalog-workspace">
+      <aside className="lead-list-panel product-list-panel">
+        <div className="filters product-filters">
+          <label className="search-field">
+            <Search size={17} />
+            <input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Search products" />
+          </label>
+          <label>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              {categories.map((category) => (
+                <option key={category}>{category}</option>
+              ))}
+            </select>
+          </label>
         </div>
-      </div>
 
-      <div className="catalog-toolbar">
-        <label className="search-field">
-          <Search size={17} />
-          <input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Search products" />
-        </label>
-        <label>
-          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-            {categories.map((category) => (
-              <option key={category}>{category}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+        <div className="lead-list product-list">
+          {visibleCatalog.length > 0 ? (
+            visibleCatalog.map((product) => (
+              <button className={`lead-row product-row ${selectedProduct?.id === product.id ? 'active' : ''}`} type="button" onClick={() => onSelect(product.id)} key={product.id}>
+                <span className={`product-status-dot ${product.status.toLowerCase()}`} aria-hidden="true" />
+                <span>
+                  <strong>{product.productName || 'Untitled product'}</strong>
+                  <small>
+                    {product.sku || 'SKU pending'} · {product.category || 'Category pending'}
+                  </small>
+                  <em>{product.sellPrice ? formatUnitMoney(product.sellPrice) : 'No price'}</em>
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="empty-state product-empty-state">
+              <strong>No catalog products match this view.</strong>
+              <span>Clear the filters or add a new product offering.</span>
+            </div>
+          )}
+        </div>
+      </aside>
 
-      <div className="catalog-list">
-        {visibleCatalog.length > 0 ? (
-          visibleCatalog.map((product) => <ProductCatalogCard product={product} onChange={(patch) => onUpdate(product.id, patch)} key={product.id} />)
-        ) : (
-          <div className="empty-state product-empty-state">
-            <strong>No catalog products match this view.</strong>
-            <span>Clear the filters or add a new product offering.</span>
+      {selectedProduct ? (
+        <article className="detail-panel product-detail-panel">
+          <div className="detail-heading product-detail-heading">
+            <div>
+              <p className="eyebrow">Product Database</p>
+              <h2>{selectedProduct.productName || 'Untitled product'}</h2>
+              <p>
+                {selectedProduct.sku || 'SKU pending'} · {selectedProduct.category || 'Category pending'}
+              </p>
+            </div>
+            <div className="profile-status-card">
+              <small>Catalog Status</small>
+              <strong>{selectedProduct.status}</strong>
+            </div>
           </div>
-        )}
-      </div>
+
+          <ProductCatalogProfile key={selectedProduct.id} product={selectedProduct} onChange={(patch) => onUpdate(selectedProduct.id, patch)} />
+        </article>
+      ) : (
+        <article className="detail-panel product-detail-panel">
+          <div className="empty-state product-empty-state">
+            <strong>No products yet.</strong>
+            <span>Add a product from the top menu to start building the catalog.</span>
+          </div>
+        </article>
+      )}
     </section>
   )
 }
 
-function ProductCatalogCard({ product, onChange }: { product: ProductCatalogItem; onChange: (patch: Partial<ProductCatalogItem>) => void }) {
+function ProductCatalogProfile({ product, onChange }: { product: ProductCatalogItem; onChange: (patch: Partial<ProductCatalogItem>) => void }) {
+  const [productPage, setProductPage] = useState<ProductCatalogPage>('overview')
+  const productPages: { id: ProductCatalogPage; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'details', label: 'Product Details' },
+    { id: 'pricing', label: 'Pricing' },
+    { id: 'supplier', label: 'Supplier' },
+    { id: 'notes', label: 'Notes' },
+  ]
+
   return (
-    <article className="catalog-card">
-      <div className="catalog-card-preview">
-        <div className="catalog-product-image" aria-hidden="true">
-          <img src={product.imagePath || productImageForProduct(product)} alt="" />
-        </div>
-        <div>
-          <span className={`catalog-status ${product.status.toLowerCase()}`}>{product.status}</span>
-          <h3>{product.productName || 'Untitled product'}</h3>
-          <p>
-            {product.sku || 'SKU pending'} · {product.category || 'Category pending'}
-          </p>
-        </div>
-        <strong>{product.sellPrice ? formatUnitMoney(product.sellPrice) : 'No price'}</strong>
-      </div>
+    <>
+      <nav className="profile-page-tabs" aria-label="Product profile sections">
+        {productPages.map((page) => (
+          <button className={productPage === page.id ? 'active' : ''} type="button" onClick={() => setProductPage(page.id)} key={page.id}>
+            {page.label}
+          </button>
+        ))}
+      </nav>
 
-      <div className="catalog-summary-grid">
-        <SummaryItem label="Supplier" value={product.supplier} />
-        <SummaryItem label="Cost" value={formatUnitMoney(product.cost)} />
-        <SummaryItem label="Margin" value={`${product.margin}%`} />
-        <SummaryItem label="Lead Time" value={product.leadTime} />
-      </div>
+      {productPage === 'overview' && (
+        <section className="detail-section catalog-profile-section">
+          <div className="section-heading">
+            <div>
+              <h3>Product Snapshot</h3>
+              <p>Review the SKU, pricing, supplier, and product image customers will see in quotes and jobs.</p>
+            </div>
+            <span>{product.stockType}</span>
+          </div>
 
-      <form className="catalog-edit-grid" onSubmit={(event) => event.preventDefault()}>
-        <label>
-          Product name
-          <input value={product.productName} onChange={(event) => onChange({ productName: event.target.value })} />
-        </label>
-        <label>
-          SKU
-          <input value={product.sku} onChange={(event) => onChange({ sku: event.target.value })} />
-        </label>
-        <label>
-          Category
-          <input value={product.category} onChange={(event) => onChange({ category: event.target.value })} />
-        </label>
-        <label>
-          Product image
-          <select value={product.imagePath} onChange={(event) => onChange({ imagePath: event.target.value })}>
-            {productImageOptions.map((path) => (
-              <option value={path} key={path}>
-                {imageLabel(path)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Material
-          <input value={product.material} onChange={(event) => onChange({ material: event.target.value })} />
-        </label>
-        <label>
-          Dimensions
-          <input value={product.dimensions} onChange={(event) => onChange({ dimensions: event.target.value })} />
-        </label>
-        <label>
-          Case pack
-          <input value={product.casePack} onChange={(event) => onChange({ casePack: event.target.value })} />
-        </label>
-        <label>
-          Supplier
-          <input value={product.supplier} onChange={(event) => onChange({ supplier: event.target.value })} />
-        </label>
-        <label>
-          Supplier SKU
-          <input value={product.supplierSku} onChange={(event) => onChange({ supplierSku: event.target.value })} />
-        </label>
-        <label>
-          Cost
-          <input type="number" step="0.001" value={product.cost} onChange={(event) => onChange({ cost: Number(event.target.value) })} />
-        </label>
-        <label>
-          Sell price
-          <input type="number" step="0.001" value={product.sellPrice} onChange={(event) => onChange({ sellPrice: Number(event.target.value) })} />
-        </label>
-        <label>
-          Lead time
-          <input value={product.leadTime} onChange={(event) => onChange({ leadTime: event.target.value })} />
-        </label>
-        <label>
-          Stock type
-          <select value={product.stockType} onChange={(event) => onChange({ stockType: event.target.value as StockType })}>
-            {stockTypeOptions.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Status
-          <select value={product.status} onChange={(event) => onChange({ status: event.target.value as CatalogStatus })}>
-            {catalogStatusOptions.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-        <label className="wide-field">
-          Catalog notes
-          <textarea value={product.notes} onChange={(event) => onChange({ notes: event.target.value })} />
-        </label>
-      </form>
-    </article>
+          <div className="catalog-profile-overview">
+            <div className="catalog-product-image catalog-profile-image" aria-hidden="true">
+              <img src={product.imagePath || productImageForProduct(product)} alt="" />
+            </div>
+            <div className="catalog-profile-copy">
+              <span className={`catalog-status ${product.status.toLowerCase()}`}>{product.status}</span>
+              <h3>{product.productName || 'Untitled product'}</h3>
+              <p>{product.notes || 'No catalog notes yet.'}</p>
+            </div>
+          </div>
+
+          <div className="catalog-summary-grid">
+            <SummaryItem label="SKU" value={product.sku} />
+            <SummaryItem label="Category" value={product.category} />
+            <SummaryItem label="Supplier" value={product.supplier} />
+            <SummaryItem label="Sell Price" value={formatUnitMoney(product.sellPrice)} />
+            <SummaryItem label="Cost" value={formatUnitMoney(product.cost)} />
+            <SummaryItem label="Margin" value={`${product.margin}%`} />
+            <SummaryItem label="Lead Time" value={product.leadTime} />
+            <SummaryItem label="Case Pack" value={product.casePack} />
+          </div>
+        </section>
+      )}
+
+      {productPage === 'details' && (
+        <section className="detail-section catalog-profile-section">
+          <div className="section-heading">
+            <div>
+              <h3>Product Details</h3>
+              <p>Maintain the core product fields used across customer profiles, quotes, jobs, and MISYS references.</p>
+            </div>
+            <span>{product.status}</span>
+          </div>
+
+          <form className="catalog-edit-grid" onSubmit={(event) => event.preventDefault()}>
+            <label>
+              Product name
+              <input value={product.productName} onChange={(event) => onChange({ productName: event.target.value })} />
+            </label>
+            <label>
+              SKU
+              <input value={product.sku} onChange={(event) => onChange({ sku: event.target.value })} />
+            </label>
+            <label>
+              Category
+              <input value={product.category} onChange={(event) => onChange({ category: event.target.value })} />
+            </label>
+            <label>
+              Product image
+              <select value={product.imagePath} onChange={(event) => onChange({ imagePath: event.target.value })}>
+                {productImageOptions.map((path) => (
+                  <option value={path} key={path}>
+                    {imageLabel(path)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Material
+              <input value={product.material} onChange={(event) => onChange({ material: event.target.value })} />
+            </label>
+            <label>
+              Dimensions
+              <input value={product.dimensions} onChange={(event) => onChange({ dimensions: event.target.value })} />
+            </label>
+            <label>
+              Case pack
+              <input value={product.casePack} onChange={(event) => onChange({ casePack: event.target.value })} />
+            </label>
+            <label>
+              Stock type
+              <select value={product.stockType} onChange={(event) => onChange({ stockType: event.target.value as StockType })}>
+                {stockTypeOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Status
+              <select value={product.status} onChange={(event) => onChange({ status: event.target.value as CatalogStatus })}>
+                {catalogStatusOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          </form>
+        </section>
+      )}
+
+      {productPage === 'pricing' && (
+        <section className="detail-section catalog-profile-section">
+          <div className="section-heading">
+            <div>
+              <h3>Pricing</h3>
+              <p>Update costs, sell price, and margin without digging through the full catalog.</p>
+            </div>
+            <span>{product.margin}% Margin</span>
+          </div>
+
+          <div className="catalog-summary-grid">
+            <SummaryItem label="Cost" value={formatUnitMoney(product.cost)} />
+            <SummaryItem label="Sell Price" value={formatUnitMoney(product.sellPrice)} />
+            <SummaryItem label="Margin" value={`${product.margin}%`} />
+            <SummaryItem label="Lead Time" value={product.leadTime} />
+          </div>
+
+          <form className="catalog-edit-grid" onSubmit={(event) => event.preventDefault()}>
+            <label>
+              Cost
+              <input type="number" step="0.001" value={product.cost} onChange={(event) => onChange({ cost: Number(event.target.value) })} />
+            </label>
+            <label>
+              Sell price
+              <input type="number" step="0.001" value={product.sellPrice} onChange={(event) => onChange({ sellPrice: Number(event.target.value) })} />
+            </label>
+            <label>
+              Lead time
+              <input value={product.leadTime} onChange={(event) => onChange({ leadTime: event.target.value })} />
+            </label>
+          </form>
+        </section>
+      )}
+
+      {productPage === 'supplier' && (
+        <section className="detail-section catalog-profile-section">
+          <div className="section-heading">
+            <div>
+              <h3>Supplier</h3>
+              <p>Keep supplier references ready for purchasing, quoting, and eventual MISYS mapping.</p>
+            </div>
+            <span>{product.supplier || 'Supplier pending'}</span>
+          </div>
+
+          <form className="catalog-edit-grid" onSubmit={(event) => event.preventDefault()}>
+            <label>
+              Supplier
+              <input value={product.supplier} onChange={(event) => onChange({ supplier: event.target.value })} />
+            </label>
+            <label>
+              Supplier SKU
+              <input value={product.supplierSku} onChange={(event) => onChange({ supplierSku: event.target.value })} />
+            </label>
+            <label>
+              Lead time
+              <input value={product.leadTime} onChange={(event) => onChange({ leadTime: event.target.value })} />
+            </label>
+          </form>
+        </section>
+      )}
+
+      {productPage === 'notes' && (
+        <section className="detail-section catalog-profile-section">
+          <div className="section-heading">
+            <div>
+              <h3>Catalog Notes</h3>
+              <p>Capture pricing notes, substitution rules, packaging specs, and product caveats.</p>
+            </div>
+            <span>Internal</span>
+          </div>
+
+          <form className="catalog-edit-grid" onSubmit={(event) => event.preventDefault()}>
+            <label className="wide-field">
+              Catalog notes
+              <textarea value={product.notes} onChange={(event) => onChange({ notes: event.target.value })} />
+            </label>
+          </form>
+        </section>
+      )}
+    </>
   )
 }
 
