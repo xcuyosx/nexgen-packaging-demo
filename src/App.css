@@ -186,6 +186,7 @@ h3 {
 .lead-list-panel,
 .detail-panel,
 .lead-form,
+.catalog-workspace,
 .customer-account-section,
 .product-sku-section,
 .client-edit-section,
@@ -948,6 +949,191 @@ h3 {
   border-radius: 8px;
 }
 
+.catalog-workspace {
+  display: grid;
+  gap: 16px;
+  padding: clamp(18px, 2.4vw, 28px);
+}
+
+.catalog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.catalog-heading h2 {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: clamp(34px, 4vw, 58px);
+  line-height: 0.98;
+}
+
+.catalog-heading p:not(.eyebrow) {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.catalog-heading button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: #102723;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.catalog-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(190px, 0.28fr);
+  gap: 8px;
+}
+
+.catalog-toolbar label {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  border: 1px solid #ded9ca;
+  border-radius: 8px;
+}
+
+.catalog-toolbar input,
+.catalog-toolbar select {
+  width: 100%;
+  min-width: 0;
+  color: var(--ink);
+  background: transparent;
+  font-weight: 900;
+}
+
+.catalog-list {
+  display: grid;
+  gap: 14px;
+}
+
+.catalog-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background: #f8f5ec;
+  border: 1px solid #e4ddcf;
+  border-radius: 8px;
+}
+
+.catalog-card-preview {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+
+.catalog-product-image {
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  background: #ffffff;
+  border: 1px solid rgba(16, 39, 35, 0.1);
+  border-radius: 8px;
+}
+
+.catalog-product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.catalog-card-preview h3 {
+  margin: 8px 0 6px;
+  color: var(--ink);
+  font-size: clamp(22px, 2.4vw, 36px);
+  line-height: 1.02;
+}
+
+.catalog-card-preview p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.catalog-card-preview > strong {
+  color: var(--green);
+  font-size: 22px;
+}
+
+.catalog-status {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  color: #ffffff;
+  text-transform: uppercase;
+  background: var(--green);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.catalog-status.draft {
+  color: #8a5720;
+  background: #fff1d7;
+}
+
+.catalog-status.paused {
+  color: #42504b;
+  background: #e6e1d5;
+}
+
+.catalog-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.catalog-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.catalog-edit-grid label {
+  display: grid;
+  gap: 7px;
+  color: #43504c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.catalog-edit-grid input,
+.catalog-edit-grid select,
+.catalog-edit-grid textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid #d9d3c4;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.catalog-edit-grid textarea {
+  min-height: 96px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
 .client-edit-heading {
   display: flex;
   align-items: flex-start;
@@ -1685,6 +1871,8 @@ h3 {
   .compact-stage-rail,
   .product-metric-grid,
   .product-detail-grid,
+  .catalog-summary-grid,
+  .catalog-edit-grid,
   .job-stage-strip,
   .pipeline-summary-bar,
   .customer-account-form,
@@ -1723,6 +1911,8 @@ h3 {
   .detail-heading,
   .email-heading,
   .product-card-heading,
+  .catalog-heading,
+  .catalog-card-preview,
   .top-products-heading,
   .capture-hero,
   .client-edit-heading,
@@ -1765,6 +1955,9 @@ h3 {
   .top-products-list,
   .product-metric-grid,
   .product-detail-grid,
+  .catalog-toolbar,
+  .catalog-summary-grid,
+  .catalog-edit-grid,
   .job-stage-strip,
   .filters,
   .pipeline-summary-bar,
@@ -1783,5 +1976,13 @@ h3 {
   .wide-client-field,
   .wide-field {
     grid-column: span 1;
+  }
+
+  .catalog-card-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-card-preview > strong {
+    justify-self: start;
   }
 }

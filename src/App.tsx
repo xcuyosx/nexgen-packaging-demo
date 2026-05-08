@@ -31,9 +31,11 @@ type ActivityEntry = {
   date: string
 }
 type View = 'crm' | 'capture'
+type WorkspacePage = 'customers' | 'catalog'
 type ProfilePage = 'overview' | 'account' | 'products' | 'contact' | 'notes' | 'activity' | 'email' | 'misys'
 type ProductRankMode = 'dollars' | 'units'
 type ActiveStatus = 'Prospect' | 'Active Customer' | 'Dormant' | 'Do Not Contact'
+type CatalogStatus = 'Active' | 'Draft' | 'Paused'
 
 type CustomerProfile = {
   customerType: string
@@ -74,6 +76,27 @@ type ProductRecord = {
   materialStatus: string
   supplierEta: string
   bottleneckReason: string
+}
+
+type ProductCatalogItem = {
+  id: string
+  sku: string
+  productName: string
+  category: string
+  imagePath: string
+  material: string
+  dimensions: string
+  casePack: string
+  supplier: string
+  supplierSku: string
+  cost: number
+  sellPrice: number
+  margin: number
+  leadTime: string
+  stockType: StockType
+  status: CatalogStatus
+  notes: string
+  updatedAt: string
 }
 
 type MisysProfile = {
@@ -131,6 +154,7 @@ const logoUrl =
   'https://static.wixstatic.com/media/067fd2_442e8edbc68c491ea121fea22fc5f107~mv2.png/v1/fill/w_918,h_218,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/067fd2_442e8edbc68c491ea121fea22fc5f107~mv2.png'
 const heroImage = '/nexgen-hero-lifestyle-20260507.png'
 const storageKey = 'nexgen-tradeshow-leads'
+const catalogStorageKey = 'nexgen-product-catalog'
 const sessionKey = 'nexgen-supabase-session'
 const supabaseUrl = 'https://fbhernygpoapgilshsdq.supabase.co'
 const anonKey =
@@ -153,6 +177,18 @@ const paymentTermOptions = ['Unknown', 'Prepaid', 'COD', 'Net 15', 'Net 30', 'Ne
 const reorderFrequencyOptions = ['Unknown', '15 days', '30 days', '45 days', '60 days', 'Quarterly', 'Seasonal']
 const activeStatusOptions: ActiveStatus[] = ['Prospect', 'Active Customer', 'Dormant', 'Do Not Contact']
 const stockTypeOptions: StockType[] = ['Stocked', 'Custom', 'Made-to-order']
+const catalogStatusOptions: CatalogStatus[] = ['Active', 'Draft', 'Paused']
+const productImageOptions = [
+  '/product-images/clear-cup.png',
+  '/product-images/clear-lid.png',
+  '/product-images/fiber-tray.png',
+  '/product-images/fiber-bowl.png',
+  '/product-images/kraft-bag.png',
+  '/product-images/kraft-liner.png',
+  '/product-images/pizza-box.png',
+  '/product-images/tamper-seal.png',
+  '/product-images/beverage-napkin.png',
+]
 const jobStageOptions = [
   'Quote Requested',
   'Quote Sent',
@@ -210,6 +246,27 @@ const emptyProductRecord: ProductRecord = {
   materialStatus: 'Unknown',
   supplierEta: '',
   bottleneckReason: '',
+}
+
+const emptyCatalogItem: ProductCatalogItem = {
+  id: '',
+  sku: '',
+  productName: '',
+  category: '',
+  imagePath: '/product-images/fiber-tray.png',
+  material: '',
+  dimensions: '',
+  casePack: '',
+  supplier: '',
+  supplierSku: '',
+  cost: 0,
+  sellPrice: 0,
+  margin: 0,
+  leadTime: '',
+  stockType: 'Custom',
+  status: 'Draft',
+  notes: '',
+  updatedAt: '',
 }
 
 const emptyMisys: MisysProfile = {
@@ -563,6 +620,27 @@ function demoTimestamp(daysFromNow: number) {
 }
 
 const seedLeads: Lead[] = buildDemoLeads()
+const seedProductCatalog: ProductCatalogItem[] = demoProductTemplates.map((template, index) =>
+  normalizeProductCatalogItem({
+    id: demoUuid(40000000, index + 1),
+    sku: `${template.skuPrefix}-CAT-${String(index + 1).padStart(2, '0')}`,
+    productName: template.productName,
+    category: template.category,
+    imagePath: template.imagePath,
+    material: template.material,
+    dimensions: template.dimensions,
+    casePack: template.casePack,
+    supplier: template.supplier,
+    supplierSku: template.supplierSku,
+    cost: template.cost,
+    sellPrice: template.sellPrice,
+    leadTime: template.leadTime,
+    stockType: template.stockType,
+    status: index % 9 === 0 ? 'Draft' : 'Active',
+    notes: `Master catalog item for ${template.need.toLowerCase()}. Use this as the base record before customer-specific quote quantities, artwork, and job status.`,
+    updatedAt: demoTimestamp(-index),
+  }),
+)
 
 function App() {
   const params = new URLSearchParams(window.location.search)
@@ -578,6 +656,8 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
   const [authError, setAuthError] = useState('')
   const [syncStatus, setSyncStatus] = useState(session?.demo ? 'Demo preview' : session ? 'Connected' : 'Login required')
   const [leads, setLeads] = useState<Lead[]>(() => (readSession()?.demo ? seedLeads : loadLocalLeads()))
+  const [productCatalog, setProductCatalog] = useState<ProductCatalogItem[]>(() => (readSession()?.demo ? seedProductCatalog : loadLocalProductCatalog()))
+  const [workspacePage, setWorkspacePage] = useState<WorkspacePage>('customers')
   const [selectedId, setSelectedId] = useState('')
   const [query, setQuery] = useState('')
   const [eventFilter, setEventFilter] = useState('Event')
@@ -611,19 +691,36 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
     [],
   )
 
+  const fetchCatalogWithSession = useCallback(
+    async (currentSession: Session) => {
+      try {
+        return { remote: await fetchProductCatalog(currentSession.access_token), activeSession: currentSession, refreshed: false }
+      } catch (error) {
+        if (!isAuthError(error)) throw error
+        if (!currentSession.refresh_token) throw error
+        const activeSession = await supabaseRefreshSession(currentSession.refresh_token)
+        return { remote: await fetchProductCatalog(activeSession.access_token), activeSession, refreshed: true }
+      }
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!session) return
     if (session.demo) {
       return
     }
     let cancelled = false
-    fetchLeadsWithSession(session)
-      .then(({ remote, activeSession, refreshed }) => {
+    Promise.all([fetchLeadsWithSession(session), fetchCatalogWithSession(session)])
+      .then(([leadResult, catalogResult]) => {
         if (cancelled) return
-        if (refreshed) persistSession(activeSession)
-        setLeads(remote)
-        setSelectedId(remote[0]?.id ?? '')
-        saveLocalLeads(remote)
+        if (leadResult.refreshed) persistSession(leadResult.activeSession)
+        if (catalogResult.refreshed) persistSession(catalogResult.activeSession)
+        setLeads(leadResult.remote)
+        setProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
+        setSelectedId(leadResult.remote[0]?.id ?? '')
+        saveLocalLeads(leadResult.remote)
+        saveLocalProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
         setSyncStatus('Connected')
       })
       .catch((error) => {
@@ -639,7 +736,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
     return () => {
       cancelled = true
     }
-  }, [fetchLeadsWithSession, persistSession, session])
+  }, [fetchCatalogWithSession, fetchLeadsWithSession, persistSession, session])
 
   const stats = useMemo(() => {
     return {
@@ -649,6 +746,18 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
       samples: leads.filter((lead) => ['Requested', 'Packed', 'Sent'].includes(lead.sampleStatus)).length,
     }
   }, [leads])
+
+  const catalogStats = useMemo(() => {
+    const suppliers = new Set(productCatalog.map((product) => product.supplier).filter(Boolean))
+    const activeProducts = productCatalog.filter((product) => product.status === 'Active')
+    const averageMargin = productCatalog.length ? Math.round(productCatalog.reduce((sum, product) => sum + product.margin, 0) / productCatalog.length) : 0
+    return {
+      total: productCatalog.length,
+      active: activeProducts.length,
+      suppliers: suppliers.size,
+      margin: `${averageMargin}%`,
+    }
+  }, [productCatalog])
 
   const events = useMemo(() => {
     return ['Event', ...Array.from(new Set(leads.map((lead) => lead.showName).filter(Boolean))).sort()]
@@ -696,6 +805,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
   function startDemoPreview() {
     const demoSession = { access_token: 'demo-preview', demo: true }
     setLeads(seedLeads)
+    setProductCatalog(seedProductCatalog)
     setSelectedId(seedLeads[0]?.id || '')
     setSession(demoSession)
     setSyncStatus('Demo preview - local sample data')
@@ -706,20 +816,86 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
     if (!session) return
     if (session.demo) {
       setLeads(seedLeads)
+      setProductCatalog(seedProductCatalog)
       setSelectedId((current) => (seedLeads.some((lead) => lead.id === current) ? current : seedLeads[0]?.id ?? ''))
       setSyncStatus('Demo preview - local sample data')
       return
     }
     setSyncStatus('Refreshing...')
     try {
-      const { remote, activeSession, refreshed } = await fetchLeadsWithSession(session)
-      if (refreshed) persistSession(activeSession)
-      setLeads(remote)
-      saveLocalLeads(remote)
-      setSelectedId((current) => (remote.some((lead) => lead.id === current) ? current : remote[0]?.id ?? ''))
+      const [leadResult, catalogResult] = await Promise.all([fetchLeadsWithSession(session), fetchCatalogWithSession(session)])
+      if (leadResult.refreshed) persistSession(leadResult.activeSession)
+      if (catalogResult.refreshed) persistSession(catalogResult.activeSession)
+      setLeads(leadResult.remote)
+      setProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
+      saveLocalLeads(leadResult.remote)
+      saveLocalProductCatalog(catalogResult.remote.length ? catalogResult.remote : seedProductCatalog)
+      setSelectedId((current) => (leadResult.remote.some((lead) => lead.id === current) ? current : leadResult.remote[0]?.id ?? ''))
       setSyncStatus('Connected')
     } catch {
       setSyncStatus('Offline - showing local backup')
+    }
+  }
+
+  async function updateCatalogItem(id: string, patch: Partial<ProductCatalogItem>) {
+    const nextCatalog = productCatalog.map((product) => (product.id === id ? normalizeProductCatalogItem({ ...product, ...patch, updatedAt: new Date().toISOString() }) : product))
+    setProductCatalog(nextCatalog)
+    saveLocalProductCatalog(nextCatalog)
+
+    if (session && !session.demo) {
+      const updated = nextCatalog.find((product) => product.id === id)
+      if (!updated) return
+      try {
+        let saved: ProductCatalogItem
+        try {
+          saved = await patchProductCatalogItem(updated, session.access_token)
+        } catch (error) {
+          if (!isAuthError(error)) throw error
+          const activeSession = await refreshCurrentSession(session)
+          saved = await patchProductCatalogItem(updated, activeSession.access_token)
+        }
+        const synced = nextCatalog.map((product) => (product.id === id ? saved : product))
+        setProductCatalog(synced)
+        saveLocalProductCatalog(synced)
+        setSyncStatus('Connected')
+      } catch {
+        setSyncStatus('Offline - catalog changes saved locally')
+      }
+    }
+  }
+
+  async function addCatalogItem() {
+    const template = seedProductCatalog[productCatalog.length % seedProductCatalog.length] ?? emptyCatalogItem
+    const nextProduct = normalizeProductCatalogItem({
+      ...template,
+      id: crypto.randomUUID(),
+      sku: `NEW-${String(productCatalog.length + 1).padStart(3, '0')}`,
+      productName: 'New product offering',
+      status: 'Draft',
+      notes: 'Edit this catalog record with supplier, cost, sell price, image, and MISYS-ready details.',
+      updatedAt: new Date().toISOString(),
+    })
+    const nextCatalog = [nextProduct, ...productCatalog]
+    setProductCatalog(nextCatalog)
+    saveLocalProductCatalog(nextCatalog)
+
+    if (session && !session.demo) {
+      try {
+        let saved: ProductCatalogItem
+        try {
+          saved = await insertProductCatalogItem(nextProduct, session.access_token)
+        } catch (error) {
+          if (!isAuthError(error)) throw error
+          const activeSession = await refreshCurrentSession(session)
+          saved = await insertProductCatalogItem(nextProduct, activeSession.access_token)
+        }
+        const synced = nextCatalog.map((product) => (product.id === nextProduct.id ? saved : product))
+        setProductCatalog(synced)
+        saveLocalProductCatalog(synced)
+        setSyncStatus('Connected')
+      } catch {
+        setSyncStatus('Offline - new catalog item saved locally')
+      }
     }
   }
 
@@ -833,6 +1009,9 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
             <button type="button" onClick={onCapture}>
               <Plus size={18} /> Add Lead
             </button>
+            <button type="button" onClick={() => setWorkspacePage((current) => (current === 'catalog' ? 'customers' : 'catalog'))}>
+              <PackageCheck size={18} /> {workspacePage === 'catalog' ? 'Customers' : 'Product Catalog'}
+            </button>
             <button type="button" onClick={refreshLeads}>
               <RefreshCw size={18} /> Refresh
             </button>
@@ -846,10 +1025,21 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
         </header>
 
         <section className="stats-grid" aria-label="CRM metrics">
-          <StatCard icon={<ClipboardList />} label="Total leads" value={stats.total} />
-          <StatCard icon={<CheckCircle2 />} label="Hot leads" value={stats.hot} />
-          <StatCard icon={<CalendarDays />} label="Open pipeline" value={stats.open} />
-          <StatCard icon={<PackageCheck />} label="Sample follow-ups" value={stats.samples} />
+          {workspacePage === 'catalog' ? (
+            <>
+              <StatCard icon={<PackageCheck />} label="Catalog SKUs" value={catalogStats.total} />
+              <StatCard icon={<CheckCircle2 />} label="Active products" value={catalogStats.active} />
+              <StatCard icon={<ClipboardList />} label="Suppliers" value={catalogStats.suppliers} />
+              <StatCard icon={<CalendarDays />} label="Avg margin" value={catalogStats.margin} />
+            </>
+          ) : (
+            <>
+              <StatCard icon={<ClipboardList />} label="Total leads" value={stats.total} />
+              <StatCard icon={<CheckCircle2 />} label="Hot leads" value={stats.hot} />
+              <StatCard icon={<CalendarDays />} label="Open pipeline" value={stats.open} />
+              <StatCard icon={<PackageCheck />} label="Sample follow-ups" value={stats.samples} />
+            </>
+          )}
         </section>
 
         <section className={syncClassName} aria-live="polite">
@@ -857,81 +1047,85 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
           <span>{syncStatus}</span>
         </section>
 
-        <section className="workspace">
-          <aside className="lead-list-panel">
-            <div className="filters">
-              <label className="search-field">
-                <Search size={17} />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search leads" />
-              </label>
-              <label>
-                <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)}>
-                  {events.map((event) => (
-                    <option key={event}>{event}</option>
-                  ))}
-                </select>
-              </label>
-              <button className="sort-toggle" type="button" onClick={() => setSortDir((current) => (current === 'az' ? 'za' : 'az'))}>
-                {sortDir === 'az' ? 'A-Z' : 'Z-A'}
-              </button>
-            </div>
-            <div className="lead-list">
-              {filteredLeads.length > 0 ? (
-                filteredLeads.map((lead) => (
-                  <button
-                    className={lead.id === selectedLead?.id ? 'lead-row active' : 'lead-row'}
-                    key={lead.id}
-                    type="button"
-                    onClick={() => setSelectedId(lead.id)}
-                  >
-                    <span className={`priority-dot ${lead.priority.toLowerCase()}`} />
-                    <span>
-                      <strong>{lead.company}</strong>
-                      <small>
-                        {lead.contact} · {lead.showName}
-                      </small>
-                    </span>
-                  </button>
-                ))
-              ) : (
-                <div className="empty-state">
-                  <strong>No leads match this view.</strong>
-                  <span>Clear search or choose another event.</span>
-                </div>
-              )}
-            </div>
-          </aside>
-
-          {selectedLead && (
-            <article className="detail-panel">
-              <div className="detail-heading">
-                <div>
-                  <p className="eyebrow">{selectedLead.priority} Lead</p>
-                  <h2>{selectedLead.company}</h2>
-                  <span>
-                    {selectedLead.contact} · {selectedLead.title || 'Contact'}
-                  </span>
-                </div>
-                <div className="profile-status-card">
-                  <small>Current Stage</small>
-                  <strong>{statusLabel(selectedLead.stage)}</strong>
-                </div>
+        {workspacePage === 'catalog' ? (
+          <ProductCatalogManager catalog={productCatalog} onAdd={addCatalogItem} onUpdate={updateCatalogItem} />
+        ) : (
+          <section className="workspace">
+            <aside className="lead-list-panel">
+              <div className="filters">
+                <label className="search-field">
+                  <Search size={17} />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search leads" />
+                </label>
+                <label>
+                  <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)}>
+                    {events.map((event) => (
+                      <option key={event}>{event}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="sort-toggle" type="button" onClick={() => setSortDir((current) => (current === 'az' ? 'za' : 'az'))}>
+                  {sortDir === 'az' ? 'A-Z' : 'Z-A'}
+                </button>
               </div>
+              <div className="lead-list">
+                {filteredLeads.length > 0 ? (
+                  filteredLeads.map((lead) => (
+                    <button
+                      className={lead.id === selectedLead?.id ? 'lead-row active' : 'lead-row'}
+                      key={lead.id}
+                      type="button"
+                      onClick={() => setSelectedId(lead.id)}
+                    >
+                      <span className={`priority-dot ${lead.priority.toLowerCase()}`} />
+                      <span>
+                        <strong>{lead.company}</strong>
+                        <small>
+                          {lead.contact} · {lead.showName}
+                        </small>
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <strong>No leads match this view.</strong>
+                    <span>Clear search or choose another event.</span>
+                  </div>
+                )}
+              </div>
+            </aside>
 
-              <ProfilePanel
-                lead={selectedLead}
-                onUpdate={(patch) => updateLead(selectedLead.id, patch)}
-                onEmailTemplate={buildEmail}
-                emailDraft={emailDraft}
-                onDraftChange={setEmailDraft}
-                onCopyDraft={copyDraft}
-                copied={copied}
-                onMisysChange={updateMisys}
-                onMisysDownload={downloadMisysCsv}
-              />
-            </article>
-          )}
-        </section>
+            {selectedLead && (
+              <article className="detail-panel">
+                <div className="detail-heading">
+                  <div>
+                    <p className="eyebrow">{selectedLead.priority} Lead</p>
+                    <h2>{selectedLead.company}</h2>
+                    <span>
+                      {selectedLead.contact} · {selectedLead.title || 'Contact'}
+                    </span>
+                  </div>
+                  <div className="profile-status-card">
+                    <small>Current Stage</small>
+                    <strong>{statusLabel(selectedLead.stage)}</strong>
+                  </div>
+                </div>
+
+                <ProfilePanel
+                  lead={selectedLead}
+                  onUpdate={(patch) => updateLead(selectedLead.id, patch)}
+                  onEmailTemplate={buildEmail}
+                  emailDraft={emailDraft}
+                  onDraftChange={setEmailDraft}
+                  onCopyDraft={copyDraft}
+                  copied={copied}
+                  onMisysChange={updateMisys}
+                  onMisysDownload={downloadMisysCsv}
+                />
+              </article>
+            )}
+          </section>
+        )}
       </main>
     </div>
   )
@@ -1278,6 +1472,174 @@ function TopProductsPanel({
         )}
       </div>
     </section>
+  )
+}
+
+function ProductCatalogManager({
+  catalog,
+  onAdd,
+  onUpdate,
+}: {
+  catalog: ProductCatalogItem[]
+  onAdd: () => void
+  onUpdate: (id: string, patch: Partial<ProductCatalogItem>) => void
+}) {
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('All categories')
+  const categories = useMemo(() => ['All categories', ...Array.from(new Set(catalog.map((product) => product.category).filter(Boolean))).sort()], [catalog])
+  const visibleCatalog = useMemo(() => {
+    const q = catalogQuery.trim().toLowerCase()
+    return [...catalog]
+      .filter((product) => categoryFilter === 'All categories' || product.category === categoryFilter)
+      .filter((product) => {
+        if (!q) return true
+        return [product.productName, product.sku, product.category, product.supplier, product.material].join(' ').toLowerCase().includes(q)
+      })
+      .sort((a, b) => a.productName.localeCompare(b.productName))
+  }, [catalog, catalogQuery, categoryFilter])
+
+  return (
+    <section className="catalog-workspace">
+      <div className="catalog-heading">
+        <div>
+          <p className="eyebrow">Product Database</p>
+          <h2>Products We Offer</h2>
+          <p>Maintain the master SKU catalog your customer quotes and jobs should pull from.</p>
+        </div>
+        <button type="button" onClick={onAdd}>
+          <Plus size={18} /> Add Product
+        </button>
+      </div>
+
+      <div className="catalog-toolbar">
+        <label className="search-field">
+          <Search size={17} />
+          <input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Search products" />
+        </label>
+        <label>
+          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+            {categories.map((category) => (
+              <option key={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="catalog-list">
+        {visibleCatalog.length > 0 ? (
+          visibleCatalog.map((product) => <ProductCatalogCard product={product} onChange={(patch) => onUpdate(product.id, patch)} key={product.id} />)
+        ) : (
+          <div className="empty-state product-empty-state">
+            <strong>No catalog products match this view.</strong>
+            <span>Clear the filters or add a new product offering.</span>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ProductCatalogCard({ product, onChange }: { product: ProductCatalogItem; onChange: (patch: Partial<ProductCatalogItem>) => void }) {
+  return (
+    <article className="catalog-card">
+      <div className="catalog-card-preview">
+        <div className="catalog-product-image" aria-hidden="true">
+          <img src={product.imagePath || productImageForProduct(product)} alt="" />
+        </div>
+        <div>
+          <span className={`catalog-status ${product.status.toLowerCase()}`}>{product.status}</span>
+          <h3>{product.productName || 'Untitled product'}</h3>
+          <p>
+            {product.sku || 'SKU pending'} · {product.category || 'Category pending'}
+          </p>
+        </div>
+        <strong>{product.sellPrice ? formatUnitMoney(product.sellPrice) : 'No price'}</strong>
+      </div>
+
+      <div className="catalog-summary-grid">
+        <SummaryItem label="Supplier" value={product.supplier} />
+        <SummaryItem label="Cost" value={formatUnitMoney(product.cost)} />
+        <SummaryItem label="Margin" value={`${product.margin}%`} />
+        <SummaryItem label="Lead Time" value={product.leadTime} />
+      </div>
+
+      <form className="catalog-edit-grid" onSubmit={(event) => event.preventDefault()}>
+        <label>
+          Product name
+          <input value={product.productName} onChange={(event) => onChange({ productName: event.target.value })} />
+        </label>
+        <label>
+          SKU
+          <input value={product.sku} onChange={(event) => onChange({ sku: event.target.value })} />
+        </label>
+        <label>
+          Category
+          <input value={product.category} onChange={(event) => onChange({ category: event.target.value })} />
+        </label>
+        <label>
+          Product image
+          <select value={product.imagePath} onChange={(event) => onChange({ imagePath: event.target.value })}>
+            {productImageOptions.map((path) => (
+              <option value={path} key={path}>
+                {imageLabel(path)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Material
+          <input value={product.material} onChange={(event) => onChange({ material: event.target.value })} />
+        </label>
+        <label>
+          Dimensions
+          <input value={product.dimensions} onChange={(event) => onChange({ dimensions: event.target.value })} />
+        </label>
+        <label>
+          Case pack
+          <input value={product.casePack} onChange={(event) => onChange({ casePack: event.target.value })} />
+        </label>
+        <label>
+          Supplier
+          <input value={product.supplier} onChange={(event) => onChange({ supplier: event.target.value })} />
+        </label>
+        <label>
+          Supplier SKU
+          <input value={product.supplierSku} onChange={(event) => onChange({ supplierSku: event.target.value })} />
+        </label>
+        <label>
+          Cost
+          <input type="number" step="0.001" value={product.cost} onChange={(event) => onChange({ cost: Number(event.target.value) })} />
+        </label>
+        <label>
+          Sell price
+          <input type="number" step="0.001" value={product.sellPrice} onChange={(event) => onChange({ sellPrice: Number(event.target.value) })} />
+        </label>
+        <label>
+          Lead time
+          <input value={product.leadTime} onChange={(event) => onChange({ leadTime: event.target.value })} />
+        </label>
+        <label>
+          Stock type
+          <select value={product.stockType} onChange={(event) => onChange({ stockType: event.target.value as StockType })}>
+            {stockTypeOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Status
+          <select value={product.status} onChange={(event) => onChange({ status: event.target.value as CatalogStatus })}>
+            {catalogStatusOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        <label className="wide-field">
+          Catalog notes
+          <textarea value={product.notes} onChange={(event) => onChange({ notes: event.target.value })} />
+        </label>
+      </form>
+    </article>
   )
 }
 
@@ -1933,6 +2295,31 @@ function normalizeProductRecord(value: Partial<ProductRecord>): ProductRecord {
   }
 }
 
+function normalizeProductCatalogItem(value: Partial<ProductCatalogItem>): ProductCatalogItem {
+  const cost = Number(value.cost || 0)
+  const sellPrice = Number(value.sellPrice || 0)
+  const margin = Number(value.margin || (sellPrice > 0 ? Math.round(((sellPrice - cost) / sellPrice) * 100) : 0))
+  return {
+    ...emptyCatalogItem,
+    ...value,
+    id: String(value.id || crypto.randomUUID()),
+    cost,
+    sellPrice,
+    margin,
+    imagePath: String(value.imagePath || productImageForProduct({ category: value.category || '', productName: value.productName || '', imagePath: '' })),
+    stockType: stockTypeOptions.includes(value.stockType as StockType) ? (value.stockType as StockType) : emptyCatalogItem.stockType,
+    status: catalogStatusOptions.includes(value.status as CatalogStatus) ? (value.status as CatalogStatus) : emptyCatalogItem.status,
+    updatedAt: String(value.updatedAt || new Date().toISOString()),
+  }
+}
+
+function normalizeProductCatalog(value: unknown): ProductCatalogItem[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((entry) => (entry && typeof entry === 'object' ? normalizeProductCatalogItem(entry as Partial<ProductCatalogItem>) : null))
+    .filter((entry): entry is ProductCatalogItem => Boolean(entry))
+}
+
 function normalizeProductRecords(value: unknown): ProductRecord[] {
   if (!Array.isArray(value)) return []
   return value
@@ -1976,6 +2363,19 @@ function loadLocalLeads() {
 
 function saveLocalLeads(leads: Lead[]) {
   localStorage.setItem(storageKey, JSON.stringify(leads))
+}
+
+function loadLocalProductCatalog() {
+  try {
+    const raw = localStorage.getItem(catalogStorageKey)
+    return normalizeProductCatalog(raw ? JSON.parse(raw) : seedProductCatalog)
+  } catch {
+    return seedProductCatalog
+  }
+}
+
+function saveLocalProductCatalog(catalog: ProductCatalogItem[]) {
+  localStorage.setItem(catalogStorageKey, JSON.stringify(catalog))
 }
 
 async function supabaseRequest(path: string, options: RequestInit = {}, token?: string): Promise<unknown> {
@@ -2039,6 +2439,11 @@ async function fetchLeads(token: string): Promise<Lead[]> {
   return rows.map(fromSupabase)
 }
 
+async function fetchProductCatalog(token: string): Promise<ProductCatalogItem[]> {
+  const rows = (await supabaseRequest('product_catalog?select=*&order=product_name.asc', {}, token)) as Record<string, unknown>[]
+  return rows.map(fromProductCatalogSupabase)
+}
+
 async function insertLead(lead: Lead) {
   let lastError: unknown
   for (const row of supabasePayloadVariants(lead)) {
@@ -2051,6 +2456,11 @@ async function insertLead(lead: Lead) {
     }
   }
   throw lastError
+}
+
+async function insertProductCatalogItem(product: ProductCatalogItem, token: string) {
+  const rows = (await supabaseRequest('product_catalog', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(toProductCatalogSupabase(product)) }, token)) as Record<string, unknown>[]
+  return fromProductCatalogSupabase(rows[0])
 }
 
 async function patchLead(lead: Lead, token: string) {
@@ -2067,6 +2477,11 @@ async function patchLead(lead: Lead, token: string) {
   throw lastError
 }
 
+async function patchProductCatalogItem(product: ProductCatalogItem, token: string) {
+  const rows = (await supabaseRequest(`product_catalog?id=eq.${encodeURIComponent(product.id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(toProductCatalogSupabase(product)) }, token)) as Record<string, unknown>[]
+  return fromProductCatalogSupabase(rows[0])
+}
+
 function supabasePayloadVariants(lead: Lead) {
   return [
     toSupabase(lead, { includeMisys: true, includeActivity: true, includeAccount: true, includeProducts: true }),
@@ -2079,6 +2494,52 @@ function supabasePayloadVariants(lead: Lead) {
     toSupabase(lead, { includeMisys: false, includeActivity: true, includeAccount: false, includeProducts: false }),
     toSupabase(lead, { includeMisys: false, includeActivity: false, includeAccount: false, includeProducts: false }),
   ]
+}
+
+function toProductCatalogSupabase(product: ProductCatalogItem) {
+  return {
+    id: product.id,
+    sku: product.sku,
+    product_name: product.productName,
+    category: product.category,
+    image_path: product.imagePath,
+    material: product.material,
+    dimensions: product.dimensions,
+    case_pack: product.casePack,
+    supplier: product.supplier,
+    supplier_sku: product.supplierSku,
+    cost: product.cost,
+    sell_price: product.sellPrice,
+    margin: product.margin,
+    lead_time: product.leadTime,
+    stock_type: product.stockType,
+    status: product.status,
+    notes: product.notes || null,
+    updated_at: product.updatedAt || new Date().toISOString(),
+  }
+}
+
+function fromProductCatalogSupabase(row: Record<string, unknown>): ProductCatalogItem {
+  return normalizeProductCatalogItem({
+    id: String(row.id ?? ''),
+    sku: String(row.sku ?? ''),
+    productName: String(row.product_name ?? ''),
+    category: String(row.category ?? ''),
+    imagePath: String(row.image_path ?? ''),
+    material: String(row.material ?? ''),
+    dimensions: String(row.dimensions ?? ''),
+    casePack: String(row.case_pack ?? ''),
+    supplier: String(row.supplier ?? ''),
+    supplierSku: String(row.supplier_sku ?? ''),
+    cost: Number(row.cost ?? 0),
+    sellPrice: Number(row.sell_price ?? 0),
+    margin: Number(row.margin ?? 0),
+    leadTime: String(row.lead_time ?? ''),
+    stockType: row.stock_type as StockType,
+    status: row.status as CatalogStatus,
+    notes: String(row.notes ?? ''),
+    updatedAt: String(row.updated_at ?? ''),
+  })
 }
 
 function isOptionalColumnError(error: unknown) {
@@ -2460,7 +2921,7 @@ function topProductsForLead(lead: Lead, mode: ProductRankMode) {
     .slice(0, 3)
 }
 
-function productImageForProduct(product: ProductRecord) {
+function productImageForProduct(product: { category: string; productName: string; imagePath?: string }) {
   if (product.imagePath) return product.imagePath
   const key = `${product.category} ${product.productName}`.toLowerCase()
   if (key.includes('pizza')) return '/product-images/pizza-box.png'
@@ -2474,6 +2935,16 @@ function productImageForProduct(product: ProductRecord) {
   if (key.includes('napkin')) return '/product-images/beverage-napkin.png'
   if (key.includes('label') || key.includes('sticker') || key.includes('seal')) return '/product-images/tamper-seal.png'
   return '/product-images/fiber-tray.png'
+}
+
+function imageLabel(path: string) {
+  return path
+    .split('/')
+    .pop()
+    ?.replace('.png', '')
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ') ?? path
 }
 
 function downloadCsv(filename: string, rows: string[][]) {
