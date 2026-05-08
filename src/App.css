@@ -7,6 +7,12 @@
     var(--page);
 }
 
+.app-shell.catalog-shell {
+  background:
+    linear-gradient(180deg, #071816 0, #102723 360px, #edf3ed 361px),
+    #edf3ed;
+}
+
 button,
 input,
 select,
