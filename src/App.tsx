@@ -1006,8 +1006,8 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
             <img src={heroImage} alt="" />
           </div>
           <div className="topbar-actions">
-            <button type="button" onClick={onCapture}>
-              <Plus size={18} /> Add Lead
+            <button type="button" onClick={workspacePage === 'catalog' ? addCatalogItem : onCapture}>
+              <Plus size={18} /> {workspacePage === 'catalog' ? 'Add Product' : 'Add Lead'}
             </button>
             <button type="button" onClick={() => setWorkspacePage((current) => (current === 'catalog' ? 'customers' : 'catalog'))}>
               <PackageCheck size={18} /> {workspacePage === 'catalog' ? 'Customers' : 'Product Catalog'}
