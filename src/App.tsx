@@ -1048,7 +1048,7 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
         </section>
 
         {workspacePage === 'catalog' ? (
-          <ProductCatalogManager catalog={productCatalog} onAdd={addCatalogItem} onUpdate={updateCatalogItem} />
+          <ProductCatalogManager catalog={productCatalog} onUpdate={updateCatalogItem} />
         ) : (
           <section className="workspace">
             <aside className="lead-list-panel">
@@ -1477,11 +1477,9 @@ function TopProductsPanel({
 
 function ProductCatalogManager({
   catalog,
-  onAdd,
   onUpdate,
 }: {
   catalog: ProductCatalogItem[]
-  onAdd: () => void
   onUpdate: (id: string, patch: Partial<ProductCatalogItem>) => void
 }) {
   const [catalogQuery, setCatalogQuery] = useState('')
@@ -1506,9 +1504,6 @@ function ProductCatalogManager({
           <h2>Products We Offer</h2>
           <p>Maintain the master SKU catalog your customer quotes and jobs should pull from.</p>
         </div>
-        <button type="button" onClick={onAdd}>
-          <Plus size={18} /> Add Product
-        </button>
       </div>
 
       <div className="catalog-toolbar">

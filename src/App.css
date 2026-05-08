@@ -976,19 +976,6 @@ h3 {
   line-height: 1.45;
 }
 
-.catalog-heading button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 14px;
-  color: #ffffff;
-  background: #102723;
-  border-radius: 8px;
-  font-weight: 900;
-}
-
 .catalog-toolbar {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) minmax(190px, 0.28fr);
