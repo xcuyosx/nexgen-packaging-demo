@@ -179,8 +179,8 @@ h3 {
 .topbar-actions {
   grid-column: 2;
   grid-row: 2;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-self: center;
   gap: 10px;
   width: 100%;
@@ -202,11 +202,10 @@ h3 {
 }
 
 .topbar-actions button {
-  flex: 1 1 170px;
+  min-width: 0;
 }
 
 .topbar-actions .sign-out-inline {
-  flex: 0 0 auto;
   color: #ffffff;
   background: rgba(255, 255, 255, 0.14);
   box-shadow: none;
@@ -1974,6 +1973,19 @@ h3 {
   .hero-photo,
   .topbar-actions {
     max-width: 860px;
+  }
+
+  .topbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions button {
+    flex: 1 1 170px;
+  }
+
+  .topbar-actions .sign-out-inline {
+    flex: 0 0 auto;
   }
 
   .hero-photo {
