@@ -1008,6 +1008,16 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
           <div className="topbar-copy">
             <img className="hero-logo" src={logoUrl} alt="NexGen Packaging" />
             <p className="eyebrow">Pipeline Command Center</p>
+            <div className="desktop-topbar-message">
+              <h1>Packaging customers, products, and next steps in one place.</h1>
+              <p>Keep every customer profile tied to the SKUs they buy, the samples they need, the quotes in motion, and the production details your team needs before anything reaches MISYS.</p>
+              <div className="topbar-tags" aria-label="Command center focus areas">
+                <span>Customers</span>
+                <span>SKUs</span>
+                <span>Quotes</span>
+                <span>MISYS-ready notes</span>
+              </div>
+            </div>
           </div>
           <div className="hero-photo" aria-hidden="true">
             <img src={heroImage} alt="" />
