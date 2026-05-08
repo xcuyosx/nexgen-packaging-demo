@@ -1008,8 +1008,6 @@ function CrmApp({ onCapture }: { onCapture: () => void }) {
           <div className="topbar-copy">
             <img className="hero-logo" src={logoUrl} alt="NexGen Packaging" />
             <p className="eyebrow">Pipeline Command Center</p>
-            <h1>Trade show leads, ready for the next move.</h1>
-            <p>Capture booth conversations, qualify packaging needs, and move every opportunity into a clear next step.</p>
           </div>
           <div className="hero-photo" aria-hidden="true">
             <img src={heroImage} alt="" />
