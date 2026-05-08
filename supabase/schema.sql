@@ -60,6 +60,8 @@ create table if not exists public.leads (
   quote_status public.quote_status not null default 'Not Started',
   task_type public.task_type not null default 'Email',
   task_due date not null default current_date,
+  account_profile jsonb not null default '{}'::jsonb,
+  product_records jsonb not null default '[]'::jsonb,
   misys_profile jsonb not null default '{}'::jsonb,
   activity_log jsonb not null default '[]'::jsonb,
   captured_at timestamptz not null default now(),
