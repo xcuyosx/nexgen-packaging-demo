@@ -220,6 +220,23 @@ function App() {
   }, [pathname])
 
   useEffect(() => {
+    if (!menuOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
     const controller = new AbortController()
     fetchStorefrontProducts(controller.signal)
       .then((remoteProducts) => {
@@ -569,18 +586,27 @@ function App() {
           type="button"
           aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
           onClick={() => setMenuOpen((open) => !open)}
         >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        <nav className={menuOpen ? 'open' : ''} aria-label="Primary navigation">
+        <nav id="primary-navigation" className={menuOpen ? 'open' : ''} aria-label="Primary navigation">
           <NavLink to="/build-a-box" onClick={() => setMenuOpen(false)}>Build a box</NavLink>
           <NavLink to="/products" onClick={() => setMenuOpen(false)}>Products</NavLink>
           <NavLink to="/industries" onClick={() => setMenuOpen(false)}>Industries</NavLink>
           <NavLink to="/capabilities" onClick={() => setMenuOpen(false)}>Capabilities</NavLink>
           <NavLink to="/contact" onClick={() => setMenuOpen(false)}>Contact</NavLink>
         </nav>
+
+        <button
+          className={`mobile-menu-backdrop${menuOpen ? ' open' : ''}`}
+          type="button"
+          aria-label="Close navigation menu"
+          tabIndex={menuOpen ? 0 : -1}
+          onClick={() => setMenuOpen(false)}
+        />
 
         <div className="header-controls">
           <NavLink className="account-action" to="/account" aria-label={customerSession ? 'Open customer account' : 'Customer sign in'}>

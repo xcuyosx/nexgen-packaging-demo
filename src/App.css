@@ -849,6 +849,10 @@
   background: #ffffff;
 }
 
+.mobile-menu-backdrop {
+  display: none;
+}
+
 main {
   overflow: hidden;
 }
@@ -4817,6 +4821,8 @@ footer a {
   .mobile-menu {
     grid-column: 1;
     grid-row: 1;
+    position: relative;
+    z-index: 4;
     justify-self: start;
     width: 42px;
     min-width: 42px;
@@ -4828,6 +4834,8 @@ footer a {
   .header-controls {
     grid-column: 3;
     grid-row: 1;
+    position: relative;
+    z-index: 4;
     justify-self: end;
     margin-left: 0;
   }
@@ -4837,29 +4845,65 @@ footer a {
   }
 
   .site-header nav {
-    position: absolute;
-    inset: 70px 14px auto 14px;
-    padding: 10px;
-    border: 1px solid rgba(20, 47, 44, 0.12);
-    border-radius: 8px;
-    display: none;
+    position: fixed;
+    inset: 70px auto 0 0;
+    z-index: 3;
+    width: min(82vw, 320px);
+    height: calc(100dvh - 70px);
+    padding: 18px 14px 24px;
+    border: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0;
+    display: flex;
     flex-direction: column;
     align-items: stretch;
-    background: #ffffff;
-    box-shadow: 0 22px 44px rgba(15, 39, 35, 0.14);
+    gap: 5px;
+    overflow-y: auto;
+    background: #0a201d;
+    box-shadow: 24px 0 48px rgba(2, 14, 12, 0.28);
+    transform: translateX(-102%);
+    visibility: hidden;
+    transition: transform 240ms ease, visibility 240ms;
   }
 
   .site-header nav a {
-    color: var(--ink);
+    min-height: 52px;
+    padding: 0 16px;
+    justify-content: flex-start;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 16px;
   }
 
+  .site-header nav a:hover,
   .site-header nav a.active {
     color: #ffffff;
-    background: var(--green);
+    background: rgba(117, 216, 173, 0.14);
   }
 
   .site-header nav.open {
-    display: flex;
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .mobile-menu-backdrop {
+    position: fixed;
+    inset: 70px 0 0 min(82vw, 320px);
+    z-index: 2;
+    width: auto;
+    height: calc(100dvh - 70px);
+    padding: 0;
+    border: 0;
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    background: rgba(2, 14, 12, 0.5);
+    backdrop-filter: blur(2px);
+    transition: opacity 220ms ease;
+  }
+
+  .mobile-menu-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .customer-login-page {
@@ -5116,8 +5160,10 @@ footer a {
     padding-top: 60px;
   }
 
-  .site-header nav {
+  .site-header nav,
+  .mobile-menu-backdrop {
     inset-block-start: 60px;
+    height: calc(100dvh - 60px);
   }
 
   .hero-section {
