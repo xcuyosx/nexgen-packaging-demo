@@ -136,6 +136,7 @@ function RouteScrollManager() {
 }
 
 function App() {
+  const { pathname } = useLocation()
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(loadCustomerSession)
   const customerSessionToken = customerSession?.token || ''
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(storefrontFallbackProducts)
@@ -152,6 +153,7 @@ function App() {
   const [customerLoginError, setCustomerLoginError] = useState('')
   const customerSyncRevisionRef = useRef(1)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [headerBrandVisible, setHeaderBrandVisible] = useState(pathname !== '/')
   const [quoteRequestReady, setQuoteRequestReady] = useState(false)
   const [buyer, setBuyer] = useState<QuoteContact>({
     name: '',
@@ -202,6 +204,17 @@ function App() {
     print: boxPrints[1],
     quantity: 500,
   })
+
+  useEffect(() => {
+    const updateHeaderBrand = () => {
+      const visible = pathname !== '/' || window.scrollY > 72
+      setHeaderBrandVisible((current) => current === visible ? current : visible)
+    }
+
+    updateHeaderBrand()
+    window.addEventListener('scroll', updateHeaderBrand, { passive: true })
+    return () => window.removeEventListener('scroll', updateHeaderBrand)
+  }, [pathname])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -545,7 +558,7 @@ function App() {
     <div className="site-shell">
       <RouteScrollManager />
       <header className="site-header">
-        <Link className="header-brand" to="/" aria-label="Nexgen Packaging Group home">
+        <Link className={`header-brand${headerBrandVisible ? ' visible' : ''}`} to="/" aria-label="Nexgen Packaging Group home">
           <img src={nexgenLogo} alt="" />
         </Link>
         <button

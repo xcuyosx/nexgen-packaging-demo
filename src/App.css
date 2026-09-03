@@ -4739,6 +4739,19 @@ footer a {
     padding-top: 70px;
   }
 
+  .header-brand {
+    opacity: 0;
+    transform: translateY(5px) scale(0.94);
+    pointer-events: none;
+    transition: opacity 180ms ease, transform 220ms ease;
+  }
+
+  .header-brand.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
   .product-catalog-page {
     padding: 38px 18px 72px;
   }
