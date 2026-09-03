@@ -1,0 +1,32 @@
+import type { Product } from './catalog'
+
+export type PrintColorCount = 0 | 1 | 2 | 3 | 4
+
+export type CartConfiguration = {
+  printColors?: PrintColorCount
+  artworkName?: string
+  artworkPreview?: string
+}
+
+export type CartItem = {
+  productId: string
+  cases: number
+  size?: string
+  printColors: PrintColorCount
+  artworkName?: string
+  artworkPreview?: string
+}
+
+export type CartLine = CartItem & {
+  product: Product
+}
+
+export type QuoteContact = {
+  name: string
+  company: string
+  email: string
+  purchaseOrder: string
+  billingProfileId: string
+  receivingLocationId: string
+  notes: string
+}
