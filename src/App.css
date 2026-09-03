@@ -4899,6 +4899,16 @@ footer a {
     padding: 34px 18px 46px;
   }
 
+  .hero-copy {
+    align-items: center;
+    text-align: center;
+  }
+
+  .hero-logo,
+  .hero-copy p:not(.eyebrow) {
+    margin-inline: auto;
+  }
+
   .hero-media {
     inset: 0;
     height: 100%;
