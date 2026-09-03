@@ -4690,6 +4690,18 @@ footer a {
   font-weight: 800;
 }
 
+@media (min-width: 1181px) {
+  .hero-section {
+    min-height: 0;
+    padding-block: clamp(42px, 3.5vw, 56px);
+    align-items: center;
+  }
+
+  .hero-copy {
+    justify-content: center;
+  }
+}
+
 @media (max-width: 1400px) {
   .catalog-results .product-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
