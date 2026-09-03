@@ -588,17 +588,6 @@ function App() {
           </div>
 
           <div className="hero-copy">
-            <p className="eyebrow">Nexgen Packaging Group</p>
-            <div className="hero-chip-row" aria-label="Platform highlights">
-              <span>
-                <ShieldCheck size={15} />
-                SQF-ready
-              </span>
-              <span>
-                <Factory size={15} />
-                Domestic manufacturing
-              </span>
-            </div>
             <img className="hero-logo" src={nexgenLogo} alt="Nexgen Packaging Group" />
             <p>Packaging procurement, built for modern foodservice teams.</p>
             <div className="hero-actions">

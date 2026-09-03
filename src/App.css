@@ -898,7 +898,7 @@ main {
   padding-top: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   color: #ffffff;
 }
 
@@ -909,27 +909,6 @@ main {
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.hero-chip-row {
-  margin-bottom: 20px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hero-chip-row span {
-  min-height: 34px;
-  padding: 0 11px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: rgba(255, 255, 255, 0.82);
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 13px;
-  font-weight: 900;
 }
 
 .hero-copy h1,
@@ -4709,7 +4688,7 @@ footer a {
   }
 
   .hero-copy {
-    padding-top: 32px;
+    padding-top: 0;
   }
 
   .hero-order {
