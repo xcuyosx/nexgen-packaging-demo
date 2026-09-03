@@ -5101,18 +5101,18 @@ footer a {
   }
 
   .hero-copy {
-    padding-inline: clamp(12px, 6vw, 26px);
+    padding-inline: 0;
   }
 
   .hero-logo {
-    width: min(100%, 320px);
+    width: min(100%, 350px);
   }
 
   .hero-copy p:not(.eyebrow) {
-    max-width: 310px;
+    max-width: 350px;
     margin-top: 16px;
     margin-bottom: 0;
-    font-size: 20px;
+    font-size: 23px;
     line-height: 1.14;
   }
 
@@ -5123,16 +5123,22 @@ footer a {
 
   .hero-actions .primary-button,
   .hero-actions .secondary-button {
-    min-height: 50px;
-    padding: 0 15px;
+    min-height: 56px;
+    padding: 0 17px;
     letter-spacing: 0.055em;
     text-transform: uppercase;
-    font-size: 12px;
+    font-size: 14px;
+  }
+
+  .hero-actions .hero-action-icon,
+  .hero-actions .hero-action-arrow {
+    width: 19px;
+    height: 19px;
   }
 
   .quote-start-card {
-    gap: 14px;
-    padding: 18px;
+    gap: 16px;
+    padding: 20px;
     border-radius: 12px;
   }
 
@@ -5141,17 +5147,17 @@ footer a {
   }
 
   .quote-start-card .panel-heading h2 {
-    font-size: 21px;
+    font-size: 24px;
     line-height: 1.12;
   }
 
   .quote-start-card .eyebrow {
-    margin-bottom: 5px;
-    font-size: 11px;
+    margin-bottom: 6px;
+    font-size: 12px;
   }
 
   .quote-start-copy {
-    font-size: 13px;
+    font-size: 15px;
     line-height: 1.45;
   }
 
@@ -5166,7 +5172,7 @@ footer a {
     border-right: 1px solid rgba(20, 47, 44, 0.1);
     align-items: flex-start;
     gap: 6px;
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.25;
   }
 
@@ -5180,10 +5186,15 @@ footer a {
   }
 
   .quote-start-steps li span {
-    width: 24px;
-    height: 24px;
-    flex-basis: 24px;
-    font-size: 10px;
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+    font-size: 11px;
+  }
+
+  .quote-start-card .primary-button {
+    min-height: 54px;
+    font-size: 14px;
   }
 
   .brand small {
@@ -5198,7 +5209,7 @@ footer a {
   .hero-copy p:not(.eyebrow) {
     margin-top: 16px;
     margin-bottom: 0;
-    font-size: 20px;
+    font-size: 23px;
     line-height: 1.14;
   }
 
