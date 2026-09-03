@@ -953,6 +953,19 @@ main {
   gap: 12px;
 }
 
+.hero-actions a {
+  justify-content: flex-start;
+}
+
+.hero-actions a > span {
+  flex: 1;
+  text-align: left;
+}
+
+.hero-action-arrow {
+  margin-left: auto;
+}
+
 .primary-button,
 .secondary-button {
   padding: 0 18px;
@@ -5070,7 +5083,107 @@ footer a {
   }
 
   .site-header {
-    padding: 12px 14px;
+    min-height: 60px;
+    padding: 8px 14px;
+  }
+
+  .site-shell {
+    padding-top: 60px;
+  }
+
+  .site-header nav {
+    inset-block-start: 60px;
+  }
+
+  .hero-section {
+    gap: 18px;
+    padding-top: 22px;
+  }
+
+  .hero-copy {
+    padding-inline: clamp(12px, 6vw, 26px);
+  }
+
+  .hero-logo {
+    width: min(100%, 300px);
+  }
+
+  .hero-copy p:not(.eyebrow) {
+    max-width: 310px;
+    margin-top: 16px;
+    margin-bottom: 0;
+    font-size: 18px;
+    line-height: 1.14;
+  }
+
+  .hero-actions {
+    margin-top: 24px;
+    gap: 9px;
+  }
+
+  .hero-actions .primary-button,
+  .hero-actions .secondary-button {
+    min-height: 43px;
+    padding: 0 13px;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+
+  .quote-start-card {
+    gap: 12px;
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .quote-start-card .panel-heading {
+    gap: 10px;
+  }
+
+  .quote-start-card .panel-heading h2 {
+    font-size: 18px;
+    line-height: 1.12;
+  }
+
+  .quote-start-card .eyebrow {
+    margin-bottom: 5px;
+    font-size: 10px;
+  }
+
+  .quote-start-copy {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .quote-start-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+  }
+
+  .quote-start-steps li {
+    min-width: 0;
+    padding: 2px 7px;
+    border-right: 1px solid rgba(20, 47, 44, 0.1);
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 9px;
+    line-height: 1.25;
+  }
+
+  .quote-start-steps li:first-child {
+    padding-left: 0;
+  }
+
+  .quote-start-steps li:last-child {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .quote-start-steps li span {
+    width: 22px;
+    height: 22px;
+    flex-basis: 22px;
+    font-size: 9px;
   }
 
   .brand small {
@@ -5083,8 +5196,10 @@ footer a {
   }
 
   .hero-copy p:not(.eyebrow) {
-    margin-top: 18px;
-    font-size: 25px;
+    margin-top: 16px;
+    margin-bottom: 0;
+    font-size: 18px;
+    line-height: 1.14;
   }
 
   .hero-actions,

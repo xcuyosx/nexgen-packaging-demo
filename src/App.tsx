@@ -7,18 +7,21 @@ import {
   Boxes,
   Check,
   ChevronRight,
+  ClipboardList,
   Factory,
   Leaf,
   Mail,
   MapPin,
   Menu,
   Phone,
+  PackageOpen,
   Plus,
   Pizza,
   Recycle,
   RotateCcw,
   Ruler,
   Search,
+  Settings2,
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
@@ -605,13 +608,19 @@ function App() {
             <p>Packaging procurement, built for modern foodservice teams.</p>
             <div className="hero-actions">
               <Link className="primary-button" to="/build-a-box">
-                Build a box <ArrowRight size={18} />
+                <Boxes className="hero-action-icon" size={17} />
+                <span>Build a box</span>
+                <ArrowRight className="hero-action-arrow" size={17} />
               </Link>
               <Link className="secondary-button" to="/products">
-                Browse products
+                <PackageOpen className="hero-action-icon" size={17} />
+                <span>Browse products</span>
+                <ArrowRight className="hero-action-arrow" size={17} />
               </Link>
               <Link className="secondary-button" to="/capabilities">
-                See capabilities
+                <Settings2 className="hero-action-icon" size={17} />
+                <span>See capabilities</span>
+                <ArrowRight className="hero-action-arrow" size={17} />
               </Link>
             </div>
           </div>
@@ -619,7 +628,7 @@ function App() {
           <aside className="hero-order quote-start-card" aria-label="Start a quote request">
             <div className="panel-heading">
               <span className="icon-tile">
-                <ShoppingCart size={20} />
+                <ClipboardList size={20} />
               </span>
               <div>
                 <p className="eyebrow">Quote builder</p>
