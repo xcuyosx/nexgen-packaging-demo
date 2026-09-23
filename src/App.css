@@ -5223,6 +5223,24 @@ main {
   text-decoration: underline;
 }
 
+.customer-login-switch button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.customer-login-help {
+  margin: -4px 0 0;
+  color: #6e6e73;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.customer-login-help a {
+  color: var(--green);
+  font-weight: 800;
+}
+
 .account-page {
   min-height: calc(100vh - 72px);
   padding: clamp(44px, 6vw, 76px) clamp(18px, 4vw, 56px) 96px;

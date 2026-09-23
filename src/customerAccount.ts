@@ -1,3 +1,5 @@
+import { classifyCustomerSignupResponse, isExistingAccountAuthError, parseCustomerPasswordRecoveryUrl } from './customerAuthResponse'
+
 export type BillingPreference = 'Credit card' | 'Invoice / net terms' | 'Purchase order'
 
 export type BillingProfile = {
@@ -82,10 +84,9 @@ export type CustomerLoginResult = CustomerSession & {
   record: CustomerAccountSyncRecord
 }
 
-export type CustomerRegistrationResult = {
-  confirmationRequired: boolean
-  login: CustomerLoginResult | null
-}
+export type CustomerRegistrationResult =
+  | { status: 'existing-account' | 'confirmation-required'; login: null }
+  | { status: 'signed-in'; login: CustomerLoginResult }
 
 export type CustomerQuoteRequestLine = {
   productId: string
@@ -372,14 +373,41 @@ export async function registerCustomerAccount(
     }),
   })
   const body = await readJson(response)
-  if (!response.ok) throw new Error(authErrorMessage(body, 'Unable to create your account.'))
-  if (!body || typeof body !== 'object' || !('access_token' in body)) {
-    return { confirmationRequired: true, login: null }
-  }
+  const responseKind = classifyCustomerSignupResponse(body, response.ok)
+  if (responseKind === 'existing-account') return { status: 'existing-account', login: null }
+  if (responseKind === 'error') throw new Error(authErrorMessage(body, 'Unable to create your account.'))
+  if (responseKind === 'confirmation-required') return { status: 'confirmation-required', login: null }
 
   const session = sessionFromSupabase(body)
   const record = await fetchCustomerAccountWithRetry(session.token)
-  return { confirmationRequired: false, login: { ...session, accountId: record.accountId, record } }
+  return { status: 'signed-in', login: { ...session, accountId: record.accountId, record } }
+}
+
+export async function requestCustomerPasswordReset(email: string): Promise<void> {
+  if (!useSupabaseCustomerAccounts) throw new Error('Password reset is not configured yet.')
+  const redirectUrl = `${window.location.origin}/account?auth=recovery`
+  const response = await fetch(`${supabaseUrl}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectUrl)}`, {
+    method: 'POST',
+    headers: { apikey: supabaseAnonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim() }),
+  })
+  const body = await readJson(response)
+  if (!response.ok) throw new Error(authErrorMessage(body, 'Unable to request a password reset.'))
+}
+
+export async function updateCustomerPassword(token: string, password: string): Promise<void> {
+  if (!useSupabaseCustomerAccounts) throw new Error('Password reset is not configured yet.')
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+  const body = await readJson(response)
+  if (!response.ok) throw new Error(authErrorMessage(body, 'Unable to update your password. Request a new reset link and try again.'))
+}
+
+export function readCustomerPasswordRecoveryLink() {
+  return parseCustomerPasswordRecoveryUrl(window.location.href)
 }
 
 export async function refreshCustomerSession(session: CustomerSession): Promise<CustomerSession> {
@@ -421,7 +449,9 @@ export async function fetchCustomerAccountSync(token: string, signal?: AbortSign
     if (accountResponse.status === 401 || orderResponse.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
     if (!accountResponse.ok) throw new Error(apiErrorMessage(accountRows, 'Unable to load your customer account.'))
     if (!orderResponse.ok) throw new Error(apiErrorMessage(orderRows, 'Unable to load your order history.'))
-    if (!Array.isArray(accountRows) || !accountRows[0]) throw new Error('This sign-in is not linked to a customer account.')
+    if (!Array.isArray(accountRows) || !accountRows[0]) {
+      throw new Error('This sign-in is not linked to a customer account. Use a separate email for a customer account or contact NexGen support.')
+    }
     return normalizeSupabaseAccountRecord(accountRows[0], Array.isArray(orderRows) ? orderRows : [])
   }
 
@@ -586,8 +616,13 @@ async function readJson(response: Response): Promise<unknown> {
 function authErrorMessage(value: unknown, fallback: string) {
   if (!value || typeof value !== 'object') return fallback
   const body = value as Record<string, unknown>
+  const code = String(body.code || body.error_code || '')
   const message = String(body.msg || body.message || body.error_description || '')
-  if (/already registered/i.test(message)) return 'An account already exists for this email. Sign in instead.'
+  if (isExistingAccountAuthError(body)) return 'An account already exists for this email. Sign in or reset your password.'
+  if (/^(email_address_not_authorized|email_provider_disabled)$/i.test(code) || /email address not authorized/i.test(message)) {
+    return 'We could not send an account email to this address. Please contact NexGen support.'
+  }
+  if (/over_email_send_rate_limit/i.test(code)) return 'Too many email requests. Wait a little and try again.'
   if (/email not confirmed/i.test(message)) return 'Confirm your email using the message we sent, then sign in.'
   if (/invalid login/i.test(message)) return 'That email and password do not match.'
   return message || fallback

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -56,12 +56,15 @@ import {
   loginCustomerAccount,
   logoutCustomerAccount,
   refreshCustomerSession,
+  readCustomerPasswordRecoveryLink,
   registerCustomerAccount,
+  requestCustomerPasswordReset,
   saveCustomerAccount,
   saveCustomerAccountSync,
   saveCustomerOrders,
   saveCustomerSession,
   submitCustomerQuoteRequest,
+  updateCustomerPassword,
 } from './customerAccount'
 import type { CustomerAccount, CustomerOrder, CustomerOrderLine, CustomerSession } from './customerAccount'
 import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
@@ -92,7 +95,7 @@ function RouteScrollManager() {
 
   useEffect(() => {
     if (hash) {
-      requestAnimationFrame(() => document.querySelector(hash)?.scrollIntoView())
+      requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView())
       return
     }
 
@@ -104,7 +107,8 @@ function RouteScrollManager() {
 
 function App() {
   const { pathname } = useLocation()
-  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(loadCustomerSession)
+  const [passwordRecovery, setPasswordRecovery] = useState(readCustomerPasswordRecoveryLink)
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(() => passwordRecovery ? null : loadCustomerSession())
   const customerSessionToken = customerSession?.token || ''
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(storefrontFallbackProducts)
   const [cart, setCart] = useState<CartItem[]>([])
@@ -113,7 +117,7 @@ function App() {
   const [customerSyncStatus, setCustomerSyncStatus] = useState<'loading' | 'connected' | 'saving' | 'saved' | 'offline'>(customerSession ? 'loading' : 'offline')
   const [customerLastSyncedAt, setCustomerLastSyncedAt] = useState('')
   const [customerLoginLoading, setCustomerLoginLoading] = useState(false)
-  const [customerLoginError, setCustomerLoginError] = useState('')
+  const [customerLoginError, setCustomerLoginError] = useState(passwordRecovery?.error || '')
   const [customerLoginMessage, setCustomerLoginMessage] = useState('')
   const customerSyncRevisionRef = useRef(1)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -130,6 +134,15 @@ function App() {
     receivingLocationId: '',
     notes: '',
   })
+
+  useLayoutEffect(() => {
+    if (!passwordRecovery) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('auth')
+    url.hash = ''
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
+    clearCustomerSession()
+  }, [passwordRecovery])
   const [contactRequest, setContactRequest] = useState({ company: '', need: 'standard', message: '' })
   const [contactEmailOpened, setContactEmailOpened] = useState(false)
 
@@ -270,7 +283,11 @@ function App() {
     try {
       const registration = await registerCustomerAccount(contactName, companyName, email, password)
       if (!registration.login) {
-        setCustomerLoginMessage('Check your email to confirm your account, then return here to sign in.')
+        if (registration.status === 'existing-account') {
+          setCustomerLoginError('This email already has a sign-in. Sign in or reset your password. A separate customer account needs a different email.')
+        } else {
+          setCustomerLoginMessage('If this is a new account, check your email for a confirmation link. Already have a sign-in? Sign in or reset your password.')
+        }
         return
       }
       const result = registration.login
@@ -302,6 +319,45 @@ function App() {
     } finally {
       setCustomerLoginLoading(false)
     }
+  }
+
+  const requestPasswordReset = async (email: string) => {
+    setCustomerLoginLoading(true)
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    try {
+      await requestCustomerPasswordReset(email)
+      setCustomerLoginMessage('If this email has a sign-in, check for a reset link. If none arrives, contact NexGen support.')
+    } catch (error) {
+      setCustomerLoginError(error instanceof Error ? error.message : 'Password reset request failed. Please try again.')
+    } finally {
+      setCustomerLoginLoading(false)
+    }
+  }
+
+  const changePassword = async (password: string) => {
+    const token = passwordRecovery?.token
+    if (!token) return false
+    setCustomerLoginLoading(true)
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    try {
+      await updateCustomerPassword(token, password)
+      setPasswordRecovery(null)
+      setCustomerLoginMessage('Password updated. Sign in with your new password.')
+      return true
+    } catch (error) {
+      setCustomerLoginError(error instanceof Error ? error.message : 'Unable to update your password. Request a new reset link.')
+      return false
+    } finally {
+      setCustomerLoginLoading(false)
+    }
+  }
+
+  const clearCustomerLoginFeedback = () => {
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    setPasswordRecovery(null)
   }
 
   const signOutCustomer = async () => {
@@ -734,8 +790,13 @@ function App() {
                   loading={customerLoginLoading}
                   error={customerLoginError}
                   message={customerLoginMessage}
+                  recoveryToken={passwordRecovery?.token || ''}
+                  recoveryError={passwordRecovery?.error || ''}
                   onLogin={signInCustomer}
                   onRegister={registerCustomer}
+                  onResetRequest={requestPasswordReset}
+                  onPasswordUpdate={changePassword}
+                  onClearFeedback={clearCustomerLoginFeedback}
                 />
               )
             }
@@ -755,8 +816,13 @@ function App() {
                   loading={customerLoginLoading}
                   error={customerLoginError}
                   message={customerLoginMessage}
+                  recoveryToken={passwordRecovery?.token || ''}
+                  recoveryError={passwordRecovery?.error || ''}
                   onLogin={signInCustomer}
                   onRegister={registerCustomer}
+                  onResetRequest={requestPasswordReset}
+                  onPasswordUpdate={changePassword}
+                  onClearFeedback={clearCustomerLoginFeedback}
                 />
               )
             }
