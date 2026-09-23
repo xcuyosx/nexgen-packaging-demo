@@ -71,12 +71,50 @@ export type CustomerAccountSyncRecord = {
 
 export type CustomerSession = {
   token: string
+  refreshToken: string
+  userId: string
   accountId: string
   expiresAt: string
+  provider: 'supabase' | 'bridge'
 }
 
 export type CustomerLoginResult = CustomerSession & {
   record: CustomerAccountSyncRecord
+}
+
+export type CustomerRegistrationResult = {
+  confirmationRequired: boolean
+  login: CustomerLoginResult | null
+}
+
+export type CustomerQuoteRequestLine = {
+  productId: string
+  sku: string
+  productName: string
+  category: string
+  material: string
+  dimensions: string
+  casePack: string
+  cases: number
+  size: string
+  printColors: number
+  inkColors: string[]
+  artworkName: string
+  artworkPosition?: {
+    size: number
+    x: number
+    y: number
+    rotate: number
+  }
+}
+
+export type CustomerQuoteRequestInput = {
+  contact: Record<string, string>
+  billing: Record<string, unknown>
+  shipping: Record<string, unknown>
+  purchaseOrder: string
+  notes: string
+  lines: CustomerQuoteRequestLine[]
 }
 
 const accountStorageKey = 'nexgen-customer-account-v1'
@@ -85,6 +123,9 @@ const sessionStorageKey = 'nexgen-customer-session-v1'
 const accountSyncUrl = String(
   import.meta.env.VITE_CUSTOMER_ACCOUNT_SYNC_URL || (import.meta.env.DEV ? 'http://127.0.0.1:3003' : ''),
 ).replace(/\/$/, '')
+const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
+const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '')
+const useSupabaseCustomerAccounts = Boolean(supabaseUrl && supabaseAnonKey)
 
 export const demoCustomerAccountId = 'summit-stadium-group'
 
@@ -234,11 +275,21 @@ export function loadCustomerSession(): CustomerSession | null {
     const stored = window.sessionStorage.getItem(sessionStorageKey)
     if (!stored) return null
     const session = JSON.parse(stored) as Partial<CustomerSession>
-    if (!session.token || !session.accountId || !session.expiresAt || Date.parse(session.expiresAt) <= Date.now()) {
+    const incompatibleProvider = useSupabaseCustomerAccounts && session.provider !== 'supabase'
+    const canRefresh = session.provider === 'supabase' && Boolean(session.refreshToken)
+    const expiredWithoutRefresh = Date.parse(String(session.expiresAt || '')) <= Date.now() && !canRefresh
+    if (incompatibleProvider || !session.token || !session.accountId || !session.expiresAt || expiredWithoutRefresh) {
       window.sessionStorage.removeItem(sessionStorageKey)
       return null
     }
-    return { token: session.token, accountId: session.accountId, expiresAt: session.expiresAt }
+    return {
+      token: session.token,
+      refreshToken: String(session.refreshToken || ''),
+      userId: String(session.userId || session.accountId),
+      accountId: session.accountId,
+      expiresAt: session.expiresAt,
+      provider: session.provider === 'supabase' ? 'supabase' : 'bridge',
+    }
   } catch {
     return null
   }
@@ -267,6 +318,19 @@ export function createCustomerRecordId(prefix: string) {
 }
 
 export async function loginCustomerAccount(email: string, password: string): Promise<CustomerLoginResult> {
+  if (useSupabaseCustomerAccounts) {
+    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: supabaseAnonKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password }),
+    })
+    const body = await readJson(response)
+    if (!response.ok) throw new Error(authErrorMessage(body, 'Unable to sign in. Check your email and password.'))
+    const session = sessionFromSupabase(body)
+    const record = await fetchCustomerAccountSync(session.token)
+    return { ...session, accountId: record.accountId, record }
+  }
+
   if (!accountSyncUrl) throw new Error('Customer sign-in is not configured.')
   const response = await fetch(`${accountSyncUrl}/api/customer-auth/login`, {
     method: 'POST',
@@ -277,13 +341,67 @@ export async function loginCustomerAccount(email: string, password: string): Pro
   if (!response.ok) throw new Error(body?.error || 'Sign-in failed.')
   return {
     token: String(body.token || ''),
+    refreshToken: '',
+    userId: String(body.accountId || ''),
     accountId: String(body.accountId || ''),
     expiresAt: String(body.expiresAt || ''),
+    provider: 'bridge',
     record: normalizeSyncRecord(body.record),
   }
 }
 
+export async function registerCustomerAccount(
+  contactName: string,
+  companyName: string,
+  email: string,
+  password: string,
+): Promise<CustomerRegistrationResult> {
+  if (!useSupabaseCustomerAccounts) throw new Error('Customer registration is not configured yet.')
+
+  const redirectUrl = `${window.location.origin}/account`
+  const response = await fetch(`${supabaseUrl}/auth/v1/signup?redirect_to=${encodeURIComponent(redirectUrl)}`, {
+    method: 'POST',
+    headers: { apikey: supabaseAnonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: email.trim(),
+      password,
+      data: {
+        contact_name: contactName.trim(),
+        company_name: companyName.trim(),
+      },
+    }),
+  })
+  const body = await readJson(response)
+  if (!response.ok) throw new Error(authErrorMessage(body, 'Unable to create your account.'))
+  if (!body || typeof body !== 'object' || !('access_token' in body)) {
+    return { confirmationRequired: true, login: null }
+  }
+
+  const session = sessionFromSupabase(body)
+  const record = await fetchCustomerAccountWithRetry(session.token)
+  return { confirmationRequired: false, login: { ...session, accountId: record.accountId, record } }
+}
+
+export async function refreshCustomerSession(session: CustomerSession): Promise<CustomerSession> {
+  if (session.provider !== 'supabase' || !session.refreshToken) return session
+  const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: { apikey: supabaseAnonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: session.refreshToken }),
+  })
+  const body = await readJson(response)
+  if (!response.ok) throw new Error(authErrorMessage(body, 'Your customer session has expired. Please sign in again.'))
+  return { ...sessionFromSupabase(body), accountId: session.accountId }
+}
+
 export async function logoutCustomerAccount(token: string): Promise<void> {
+  if (useSupabaseCustomerAccounts && token) {
+    await fetch(`${supabaseUrl}/auth/v1/logout`, {
+      method: 'POST',
+      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${token}` },
+    })
+    return
+  }
   if (!accountSyncUrl || !token) return
   await fetch(`${accountSyncUrl}/api/customer-auth/logout`, {
     method: 'POST',
@@ -292,6 +410,21 @@ export async function logoutCustomerAccount(token: string): Promise<void> {
 }
 
 export async function fetchCustomerAccountSync(token: string, signal?: AbortSignal): Promise<CustomerAccountSyncRecord> {
+  if (useSupabaseCustomerAccounts) {
+    const userId = userIdFromAccessToken(token)
+    const [accountResponse, orderResponse] = await Promise.all([
+      supabaseRequest(`customer_accounts?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`, token, { signal }),
+      supabaseRequest(`customer_orders?user_id=eq.${encodeURIComponent(userId)}&select=*&order=order_date.desc`, token, { signal }),
+    ])
+    const accountRows = await readJson(accountResponse)
+    const orderRows = await readJson(orderResponse)
+    if (accountResponse.status === 401 || orderResponse.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
+    if (!accountResponse.ok) throw new Error(apiErrorMessage(accountRows, 'Unable to load your customer account.'))
+    if (!orderResponse.ok) throw new Error(apiErrorMessage(orderRows, 'Unable to load your order history.'))
+    if (!Array.isArray(accountRows) || !accountRows[0]) throw new Error('This sign-in is not linked to a customer account.')
+    return normalizeSupabaseAccountRecord(accountRows[0], Array.isArray(orderRows) ? orderRows : [])
+  }
+
   if (!accountSyncUrl) throw new Error('Customer account sync is not configured.')
   const response = await fetch(`${accountSyncUrl}/api/customer-account`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -309,6 +442,30 @@ export async function saveCustomerAccountSync(
   expectedRevision: number,
   token: string,
 ): Promise<CustomerAccountSyncRecord> {
+  if (useSupabaseCustomerAccounts) {
+    const userId = userIdFromAccessToken(token)
+    const response = await supabaseRequest(
+      `customer_accounts?user_id=eq.${encodeURIComponent(userId)}&revision=eq.${expectedRevision}`,
+      token,
+      {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          company_name: account.companyName,
+          contact_name: account.contactName,
+          phone: account.phone,
+          billing_profiles: account.billingProfiles,
+          receiving_locations: account.receivingLocations,
+        }),
+      },
+    )
+    const rows = await readJson(response)
+    if (response.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
+    if (!response.ok) throw new Error(apiErrorMessage(rows, 'Unable to save your customer account.'))
+    if (!Array.isArray(rows) || !rows[0]) throw new Error('This account changed in another session. Refresh and try again.')
+    return normalizeSupabaseAccountRecord(rows[0], orders.map(customerOrderToSupabaseShape))
+  }
+
   if (!accountSyncUrl) throw new Error('Customer account sync is not configured.')
   const response = await fetch(`${accountSyncUrl}/api/customer-account`, {
     method: 'PUT',
@@ -320,6 +477,183 @@ export async function saveCustomerAccountSync(
   if (response.status === 409) throw new Error('This account changed in another session. Refresh and try again.')
   if (!response.ok) throw new Error(body?.error || `Customer account sync failed with status ${response.status}.`)
   return normalizeSyncRecord(body)
+}
+
+export async function submitCustomerQuoteRequest(
+  token: string,
+  request: CustomerQuoteRequestInput,
+): Promise<{ requestNumber: string }> {
+  if (!useSupabaseCustomerAccounts) throw new Error('Online quote requests are not configured yet.')
+  const userId = userIdFromAccessToken(token)
+  const accountResponse = await supabaseRequest(
+    `customer_accounts?user_id=eq.${encodeURIComponent(userId)}&select=lead_id&limit=1`,
+    token,
+  )
+  const accounts = await readJson(accountResponse)
+  if (accountResponse.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
+  if (!accountResponse.ok) throw new Error(apiErrorMessage(accounts, 'Unable to identify your customer account.'))
+  if (!Array.isArray(accounts) || !accounts[0]?.lead_id) throw new Error('This account is not linked to a NexGen customer record.')
+
+  const requestNumber = `WEB-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+  const response = await supabaseRequest('customer_quote_requests', token, {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      user_id: userId,
+      lead_id: String(accounts[0].lead_id),
+      request_number: requestNumber,
+      contact_snapshot: request.contact,
+      billing_snapshot: request.billing,
+      shipping_snapshot: request.shipping,
+      purchase_order: request.purchaseOrder,
+      notes: request.notes,
+      lines: request.lines,
+    }),
+  })
+  const body = await readJson(response)
+  if (response.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
+  if (!response.ok) throw new Error(apiErrorMessage(body, 'Unable to submit your quote request.'))
+  return { requestNumber }
+}
+
+async function fetchCustomerAccountWithRetry(token: string) {
+  let lastError: unknown
+  for (const delay of [0, 180, 420, 800]) {
+    if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay))
+    try {
+      return await fetchCustomerAccountSync(token)
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Unable to finish creating your customer account.')
+}
+
+function sessionFromSupabase(value: unknown): CustomerSession {
+  if (!value || typeof value !== 'object') throw new Error('The sign-in service returned an invalid session.')
+  const session = value as Record<string, unknown>
+  const user = session.user && typeof session.user === 'object' ? session.user as Record<string, unknown> : {}
+  const token = String(session.access_token || '')
+  const userId = String(user.id || userIdFromAccessToken(token))
+  const expiresAtSeconds = Number(session.expires_at || 0)
+  const expiresInSeconds = Number(session.expires_in || 3600)
+  if (!token || !userId) throw new Error('The sign-in service returned an incomplete session.')
+  return {
+    token,
+    refreshToken: String(session.refresh_token || ''),
+    userId,
+    accountId: userId,
+    expiresAt: new Date(expiresAtSeconds > 0 ? expiresAtSeconds * 1000 : Date.now() + expiresInSeconds * 1000).toISOString(),
+    provider: 'supabase',
+  }
+}
+
+function userIdFromAccessToken(token: string) {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) throw new Error()
+    const normalized = payload.replaceAll('-', '+').replaceAll('_', '/')
+    const decoded = JSON.parse(window.atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='))) as { sub?: string }
+    if (!decoded.sub) throw new Error()
+    return decoded.sub
+  } catch {
+    throw new Error('Your customer session is invalid. Please sign in again.')
+  }
+}
+
+function supabaseRequest(path: string, token: string, options: RequestInit = {}) {
+  return fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  })
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  const text = await response.text()
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text }
+  }
+}
+
+function authErrorMessage(value: unknown, fallback: string) {
+  if (!value || typeof value !== 'object') return fallback
+  const body = value as Record<string, unknown>
+  const message = String(body.msg || body.message || body.error_description || '')
+  if (/already registered/i.test(message)) return 'An account already exists for this email. Sign in instead.'
+  if (/email not confirmed/i.test(message)) return 'Confirm your email using the message we sent, then sign in.'
+  if (/invalid login/i.test(message)) return 'That email and password do not match.'
+  return message || fallback
+}
+
+function apiErrorMessage(value: unknown, fallback: string) {
+  if (!value || typeof value !== 'object') return fallback
+  const body = value as Record<string, unknown>
+  return String(body.message || body.error_description || fallback)
+}
+
+function normalizeSupabaseAccountRecord(accountValue: unknown, orderValues: unknown[]): CustomerAccountSyncRecord {
+  if (!accountValue || typeof accountValue !== 'object') throw new Error('Customer account data is invalid.')
+  const row = accountValue as Record<string, unknown>
+  return {
+    accountId: String(row.id || ''),
+    crmCustomerId: String(row.lead_id || ''),
+    revision: Math.max(1, Number(row.revision || 1)),
+    updatedAt: String(row.updated_at || ''),
+    updatedBy: 'Shared customer database',
+    account: {
+      companyName: String(row.company_name || ''),
+      contactName: String(row.contact_name || ''),
+      email: String(row.email || ''),
+      phone: String(row.phone || ''),
+      billingProfiles: Array.isArray(row.billing_profiles) ? row.billing_profiles as BillingProfile[] : [],
+      receivingLocations: Array.isArray(row.receiving_locations) ? row.receiving_locations as ReceivingLocation[] : [],
+      paymentMethods: Array.isArray(row.payment_methods) ? row.payment_methods as PaymentMethodSummary[] : [],
+    },
+    orders: orderValues.map(customerOrderFromSupabase).filter((order): order is CustomerOrder => Boolean(order)),
+  }
+}
+
+function customerOrderFromSupabase(value: unknown): CustomerOrder | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  return {
+    id: String(row.order_number || row.id || ''),
+    createdAt: String(row.order_date || row.created_at || ''),
+    company: String(row.company || ''),
+    status: normalizeOrderStatus(row.status),
+    subtotal: Number(row.subtotal || 0),
+    billingProfile: String(row.billing_profile || ''),
+    receivingLocation: String(row.receiving_location || ''),
+    items: Array.isArray(row.items) ? row.items as CustomerOrderLine[] : [],
+  }
+}
+
+function customerOrderToSupabaseShape(order: CustomerOrder) {
+  return {
+    order_number: order.id,
+    order_date: order.createdAt,
+    company: order.company,
+    status: order.status,
+    subtotal: order.subtotal,
+    billing_profile: order.billingProfile || '',
+    receiving_location: order.receivingLocation || '',
+    items: order.items,
+  }
+}
+
+function normalizeOrderStatus(value: unknown): CustomerOrder['status'] {
+  const status = String(value || '')
+  return ['Pending confirmation', 'Confirmed', 'In production', 'Shipped'].includes(status)
+    ? status as CustomerOrder['status']
+    : 'Pending confirmation'
 }
 
 function normalizeSyncRecord(value: unknown): CustomerAccountSyncRecord {

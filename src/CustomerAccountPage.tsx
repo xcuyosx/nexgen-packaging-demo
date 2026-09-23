@@ -206,7 +206,7 @@ export function CustomerAccountPage({ account, orders, onSave, onSignOut, syncSt
           <>
             <header className="account-home-header">
               <div>
-                <p className="eyebrow">Customer account · Demo</p>
+                <p className="eyebrow">Customer account</p>
                 <h1>{accountName}</h1>
                 <p>Orders, payments, billing, and delivery information in one place.</p>
               </div>
@@ -285,7 +285,7 @@ export function CustomerAccountPage({ account, orders, onSave, onSignOut, syncSt
               <form id="account-profile-form" className="account-form" onSubmit={(event) => { event.preventDefault(); saveAccount() }}>
                 <label>Company name<input value={currentAccount.companyName} autoComplete="organization" onChange={(event) => updateDraft((current) => ({ ...current, companyName: event.target.value }))} /></label>
                 <label>Primary contact<input value={currentAccount.contactName} autoComplete="name" onChange={(event) => updateDraft((current) => ({ ...current, contactName: event.target.value }))} /></label>
-                <label>Account email<input value={currentAccount.email} type="email" autoComplete="email" onChange={(event) => updateDraft((current) => ({ ...current, email: event.target.value }))} /></label>
+                <label>Sign-in email<input value={currentAccount.email} type="email" autoComplete="email" readOnly aria-readonly="true" /></label>
                 <label>Phone<input value={currentAccount.phone} type="tel" autoComplete="tel" onChange={(event) => updateDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
               </form>
             </section>

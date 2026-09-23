@@ -1,47 +1,81 @@
 import { useState } from 'react'
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff } from 'lucide-react'
 
 type CustomerLoginPageProps = {
   logoUrl: string
   loading: boolean
   error: string
+  message: string
   onLogin: (email: string, password: string) => Promise<void>
+  onRegister: (contactName: string, companyName: string, email: string, password: string) => Promise<void>
 }
 
-export function CustomerLoginPage({ logoUrl, loading, error, onLogin }: CustomerLoginPageProps) {
+export function CustomerLoginPage({ logoUrl, loading, error, message, onLogin, onRegister }: CustomerLoginPageProps) {
+  const [mode, setMode] = useState<'signin' | 'register'>('signin')
+  const [contactName, setContactName] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (mode === 'register') {
+      await onRegister(contactName, companyName, email, password)
+      return
+    }
     await onLogin(email, password)
   }
 
   return (
     <section className="customer-login-page page-section">
       <div className="customer-login-shell">
-        <div className="customer-login-intro">
+        <div className="customer-login-brand">
           <img src={logoUrl} alt="NexGen Packaging Group" />
-          <p>Customer account</p>
-          <h1>Your packaging orders, all in one place.</h1>
-          <span>Review orders, reorder products, and manage billing and delivery information.</span>
         </div>
 
         <form className="customer-login-card" onSubmit={submit}>
-          <div>
-            <p className="eyebrow">Welcome back</p>
-            <h2>Sign in</h2>
-            <span>Use the email and password assigned to your customer account.</span>
+          <div className="customer-login-heading">
+            <h1>{mode === 'signin' ? 'Sign in' : 'Create your account'}</h1>
+            <p>{mode === 'signin' ? 'Access your quotes, orders, and account details.' : 'Use your work email to create a NexGen customer account.'}</p>
           </div>
+
+          {mode === 'register' ? (
+            <div className="customer-login-registration-fields">
+              <label>
+                Your name
+                <span className="customer-login-field">
+                  <input
+                    type="text"
+                    autoComplete="name"
+                    value={contactName}
+                    onChange={(event) => setContactName(event.target.value)}
+                    required
+                  />
+                </span>
+              </label>
+              <label>
+                Company
+                <span className="customer-login-field">
+                  <input
+                    type="text"
+                    autoComplete="organization"
+                    value={companyName}
+                    onChange={(event) => setCompanyName(event.target.value)}
+                    required
+                  />
+                </span>
+              </label>
+            </div>
+          ) : null}
 
           <label>
             Email
             <span className="customer-login-field">
-              <Mail size={18} aria-hidden="true" />
               <input
                 type="email"
                 autoComplete="username"
+                inputMode="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
@@ -52,12 +86,12 @@ export function CustomerLoginPage({ logoUrl, loading, error, onLogin }: Customer
           <label>
             Password
             <span className="customer-login-field">
-              <LockKeyhole size={18} aria-hidden="true" />
               <input
                 type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                minLength={mode === 'register' ? 8 : undefined}
                 required
               />
               <button
@@ -71,13 +105,19 @@ export function CustomerLoginPage({ logoUrl, loading, error, onLogin }: Customer
           </label>
 
           {error ? <p className="customer-login-error" role="alert">{error}</p> : null}
+          {message ? <p className="customer-login-message" role="status">{message}</p> : null}
 
           <button className="customer-login-submit" type="submit" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? (mode === 'signin' ? 'Signing in…' : 'Creating account…') : (mode === 'signin' ? 'Sign in' : 'Create account')}
             {!loading ? <ArrowRight size={18} aria-hidden="true" /> : null}
           </button>
 
-          <p className="customer-login-help">Need access? Contact your NexGen sales representative.</p>
+          <div className="customer-login-switch">
+            <span>{mode === 'signin' ? 'New to NexGen?' : 'Already have an account?'}</span>
+            <button type="button" onClick={() => setMode(mode === 'signin' ? 'register' : 'signin')}>
+              {mode === 'signin' ? 'Create an account' : 'Sign in'}
+            </button>
+          </div>
         </form>
       </div>
     </section>

@@ -11,10 +11,12 @@ type CartPageProps = {
   signedIn: boolean
   contact: QuoteContact
   requestReady: boolean
+  requestLoading: boolean
+  requestError: string
   onContactChange: (field: keyof QuoteContact, value: string) => void
   onQuantityChange: (productId: string, delta: number) => void
   onRemove: (productId: string) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
 }
 
 export function CartPage({
@@ -24,6 +26,8 @@ export function CartPage({
   signedIn,
   contact,
   requestReady,
+  requestLoading,
+  requestError,
   onContactChange,
   onQuantityChange,
   onRemove,
@@ -69,10 +73,18 @@ export function CartPage({
                       <span>{item.product.sku || item.product.category}</span>
                       <Link to={`/products/${item.product.id}`}>{item.product.name}</Link>
                       <small>{item.size || item.product.sizes[0]}</small>
+                      <small>{item.material || item.product.material}</small>
                       {item.printColors > 0 ? (
                         <div className="cart-print-summary">
                           <FileImage size={15} />
                           <span>{item.printColors}-color printing{item.artworkName ? ` · ${item.artworkName}` : ' · Artwork to follow'}</span>
+                          {item.inkColors?.length ? (
+                            <span className="cart-ink-swatches" aria-label={`Requested print colors: ${item.inkColors.join(', ')}`}>
+                              {item.inkColors.map((color, index) => (
+                                <i key={`${color}-${index}`} style={{ backgroundColor: color }} />
+                              ))}
+                            </span>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="cart-print-summary plain">Unprinted</div>
@@ -131,14 +143,16 @@ export function CartPage({
 
                 <label className="quote-request-notes">Notes <span>Optional</span><textarea rows={3} value={contact.notes} onChange={(event) => onContactChange('notes', event.target.value)} /></label>
 
-                <button className="primary-button full-width" type="submit">
+                {requestError ? <p className="quote-request-error" role="alert">{requestError}</p> : null}
+
+                <button className="primary-button full-width" type="submit" disabled={requestLoading || requestReady}>
                   {requestReady ? <Check size={18} /> : <Mail size={18} />}
-                  {requestReady ? 'Quote request ready' : 'Request quote'}
+                  {requestLoading ? 'Submitting…' : requestReady ? 'Request submitted' : 'Request quote'}
                 </button>
               </form>
 
-              {!signedIn ? <p className="quote-request-account-note"><Link to="/account">Sign in</Link> to use saved billing and delivery locations.</p> : null}
-              <small className="quote-request-disclaimer">Your email app will open with the configured products and specifications. Attach original artwork before sending if requested.</small>
+              {!signedIn ? <p className="quote-request-account-note"><Link to="/account">Sign in or create an account</Link> to submit this request and use saved billing and delivery locations.</p> : null}
+              <small className="quote-request-disclaimer">Your request is sent directly to the NexGen quote workspace for pricing and follow-up.</small>
             </aside>
           </div>
         )}

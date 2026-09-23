@@ -3,6 +3,7 @@ import type { Product, ProductCategory } from './catalog'
 
 type StorefrontCatalogRow = {
   id: string
+  storefront_slug?: string | null
   sku: string
   product_name: string
   category: string
@@ -13,6 +14,16 @@ type StorefrontCatalogRow = {
   sell_price: number
   lead_time: string
   stock_type: string
+  item_number?: string | null
+  capacity?: string | null
+  sleeves_per_case?: number | null
+  units_per_sleeve?: number | null
+  cases_per_pallet?: number | null
+  gram_weight?: string | null
+  public_description?: string | null
+  public_applications?: string[] | null
+  spec_sheet_path?: string | null
+  public_image_status?: 'Concept' | 'Approved' | null
 }
 
 const productImages: Record<string, string> = {
@@ -106,14 +117,18 @@ function mapStorefrontProduct(row: StorefrontCatalogRow): Product {
   const dimensions = row.dimensions.trim() || 'Standard format'
   const casePack = row.case_pack.trim() || 'Case pack confirmed with order'
   const imageName = row.image_path.split('/').pop() || ''
-  const applications = applicationsForCategory(category)
+  const applications = row.public_applications?.filter(Boolean) || applicationsForCategory(category)
+  const hasPublicSpec = Boolean(row.item_number && row.spec_sheet_path)
   return {
-    id: row.id,
+    id: row.storefront_slug?.trim() || row.id,
     sku: row.sku,
     name: row.product_name,
     category,
+    division: hasPublicSpec
+      ? (row.material.toLowerCase().includes('paper') || row.material.toLowerCase().includes('fiber') ? 'paper' : 'plastic')
+      : undefined,
     material: row.material || 'Material confirmed with order',
-    description: `${row.product_name} in ${dimensions}, supplied as ${casePack}. Availability and delivery timing are confirmed before release.`,
+    description: row.public_description?.trim() || `${row.product_name} in ${dimensions}, supplied as ${casePack}. Availability and delivery timing are confirmed before release.`,
     casePack,
     leadTime: row.lead_time || 'Confirmed with order',
     image: catalogProductImages[row.sku] || productImages[imageName] || curatedProducts[0].image,
@@ -124,6 +139,18 @@ function mapStorefrontProduct(row: StorefrontCatalogRow): Product {
     unitsPerCase: unitsFromCasePack(casePack),
     stockType: row.stock_type,
     source: 'crm',
+    publicSpec: hasPublicSpec ? {
+      itemNumber: String(row.item_number),
+      capacity: String(row.capacity || ''),
+      dimensions,
+      sleevesPerCase: Number(row.sleeves_per_case || 0),
+      unitsPerSleeve: Number(row.units_per_sleeve || 0),
+      casesPerPallet: Number(row.cases_per_pallet || 0),
+      gramWeight: String(row.gram_weight || ''),
+      specSheetUrl: String(row.spec_sheet_path),
+      imageStatus: row.public_image_status === 'Approved' ? 'Approved' : 'Concept',
+      sourceNote: 'Published product facts are maintained in the NexGen product master.',
+    } : undefined,
   }
 }
 
