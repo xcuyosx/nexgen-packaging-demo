@@ -29,6 +29,11 @@ export type ProductPublicSpec = {
   sourceNote: string
 }
 
+export type ProductSpecDownload = {
+  label: string
+  url: string
+}
+
 export type Product = {
   id: string
   sku?: string
@@ -41,6 +46,7 @@ export type Product = {
   casePack: string
   leadTime: string
   image: string
+  imageNote?: string
   badges: string[]
   applications: string[]
   sizes: string[]
@@ -51,6 +57,7 @@ export type Product = {
   stockType?: string
   source?: 'crm' | 'curated'
   publicSpec?: ProductPublicSpec
+  specDownloadsBySize?: Record<string, ProductSpecDownload[]>
 }
 
 type ProductSeed = Omit<Product, 'sizes' | 'casePack' | 'leadTime' | 'source'> & {
@@ -84,6 +91,13 @@ const plasticMaterials = [
   'EcoBio Earth - 100% biodegradable',
   'EcoBio Natura - 100% compostable',
 ]
+
+const entreeFormats = {
+  small: 'Small · 24 oz · 8 × 6 in (base 620 / lid 620)',
+  medium: 'Medium · 32 oz · 10 × 7 in (base 817 / lid 820)',
+  large: 'Large · 64 oz · 12 × 8.5 in (base 920 / lid 920)',
+  square: 'Square · 32 oz · 8 × 8 in (base 520 / lid 520)',
+} as const
 
 const family = (seed: ProductSeed): Product => ({
   ...seed,
@@ -403,10 +417,29 @@ export const products: Product[] = [
   }),
   family({
     id: 'plastic-entree-containers', name: 'Plastic entrée containers and lids', category: 'Food Containers', division: 'plastic',
-    material: 'Rigid food-contact plastic', materials: plasticMaterials,
-    description: 'Separate base-and-lid systems for meals, entrées, and prepared-food programs.', image: '/product-images/catalog/32oz-pp-container.jpg',
+    material: 'PP bases; PET lids except square (PP)', materials: ['PP bases; PET lids except square (PP)'],
+    description: 'Separate base-and-lid systems for meals, entrées, and prepared-food programs.', image: '/product-images/specifications/item-620-concept.png',
+    imageNote: 'Illustrative entrée base · formats vary',
     badges: ['4 formats', 'Base and lid', 'Prepared meals'], applications: ['Prepared foods', 'Takeout', 'Retail', 'Catering'],
-    optionGroups: [{ label: 'Container format', options: ['Small - 8 × 6 × 3 in (620)', 'Medium - 10 × 7 × 3 in (817)', 'Large - 12 × 8 × 3 in (920)', 'Square - 8 × 8 × 3 in (520)'] }],
+    optionGroups: [{ label: 'Container format', options: Object.values(entreeFormats) }],
+    specDownloadsBySize: {
+      [entreeFormats.small]: [
+        { label: 'Base specification · Item 620', url: '/specifications/NexGenPac-620-24oz-Small-Entree-Base-Spec-Sheet.pdf' },
+        { label: 'Lid specification · Item 620', url: '/specifications/NexGenPac-620-24-oz-Small-Entree-Lid-Spec-Sheet.pdf' },
+      ],
+      [entreeFormats.medium]: [
+        { label: 'Base specification · Item 817', url: '/specifications/NexGenPac-817-32-oz-Medium-Entree-Base-Spec-Sheet.pdf' },
+        { label: 'Lid specification · Item 820', url: '/specifications/NexGenPac-820-32-oz-Medium-Entree-Lid-Spec-Sheet.pdf' },
+      ],
+      [entreeFormats.large]: [
+        { label: 'Base specification · Item 920', url: '/specifications/NexGenPac-920-64-oz-Large-Entree-Base-Spec-Sheet.pdf' },
+        { label: 'Lid specification · Item 920', url: '/specifications/NexGenPac-920-64-oz-Large-Entree-Lid-Spec-Sheet.pdf' },
+      ],
+      [entreeFormats.square]: [
+        { label: 'Base specification · Item 520', url: '/specifications/NexGenPac-520-32-oz-Square-Entree-Base-Spec-Sheet.pdf' },
+        { label: 'Lid specification · Item 520', url: '/specifications/NexGenPac-520-32-oz-Square-Entree-Lid-Spec-Sheet.pdf' },
+      ],
+    },
   }),
   family({
     id: 'juice-bottles', name: 'Juice bottles and caps', category: 'Accessories', division: 'plastic',

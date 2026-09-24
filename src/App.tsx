@@ -1719,8 +1719,14 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
   const firstOption = optionGroups.length > 1
     ? `${optionGroups[0]?.label}: ${optionGroups[0]?.options[0] || ''}`
     : optionGroups[0]?.options[0] || ''
-  const [selectedSize, setSelectedSize] = useState(cartItem?.size || firstOption)
-  const [selectedMaterial, setSelectedMaterial] = useState(cartItem?.material || product.materials?.[0] || product.material)
+  const savedSize = cartItem?.size
+  const restoredSize = product.id === 'plastic-entree-containers' && savedSize && !product.sizes.includes(savedSize)
+    ? product.sizes.find((size) => size.startsWith(`${savedSize.split(' - ')[0]} ·`))
+    : savedSize
+  const [selectedSize, setSelectedSize] = useState(restoredSize || firstOption)
+  const [selectedMaterial, setSelectedMaterial] = useState(
+    product.id === 'plastic-entree-containers' ? product.material : cartItem?.material || product.materials?.[0] || product.material,
+  )
   const [selectedQuantity, setSelectedQuantity] = useState(1)
   const [printColors, setPrintColors] = useState<PrintColorCount>(cartItem?.printColors || 0)
   const [artworkName, setArtworkName] = useState(cartItem?.artworkName || '')
@@ -1729,6 +1735,7 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
   const [mobileStep, setMobileStep] = useState(1)
   const printableProduct = Boolean(product.maxPrintColors)
   const spec = product.publicSpec
+  const specDownloads = product.specDownloadsBySize?.[selectedSize] || []
   const relatedPool = product.division
     ? products.filter((item) => item.division === product.division)
     : products
@@ -1783,11 +1790,11 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
       <div className="product-detail-layout">
         <div className="product-detail-media">
           <div className="product-detail-image-stage">
-            <img src={product.image} alt={product.name} />
+            <img src={product.image} alt={product.imageNote ? `${product.name} (illustrative image)` : product.name} />
           </div>
           <div className="product-media-caption">
             <span>{spec ? `Item ${spec.itemNumber}` : product.division ? `${product.division} collection` : product.sku || product.category}</span>
-            <strong>{spec?.imageStatus === 'Concept' ? 'Concept image · Photography pending' : selectedMaterial}</strong>
+            <strong>{product.imageNote || (spec?.imageStatus === 'Concept' ? 'Concept image · Photography pending' : selectedMaterial)}</strong>
           </div>
         </div>
 
@@ -1985,10 +1992,13 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
             {cartItem ? <Link className="product-view-cart" to="/cart">View cart <ArrowRight size={17} /></Link> : null}
           </div>
 
-          {spec ? (
+          {spec || specDownloads.length > 0 ? (
             <div className="product-spec-resource-links" aria-label="Product resources">
-              <a href={spec.specSheetUrl} download><Download size={17} /> Download specification</a>
-              <Link to="/contact" onClick={() => onRequestSample(spec.itemNumber)}>Request a sample <ArrowRight size={16} /></Link>
+              {spec ? <a href={spec.specSheetUrl} download><Download size={17} /> Download specification</a> : null}
+              {specDownloads.map((resource) => (
+                <a key={resource.url} href={resource.url} download><Download size={17} /> {resource.label}</a>
+              ))}
+              {spec ? <Link to="/contact" onClick={() => onRequestSample(spec.itemNumber)}>Request a sample <ArrowRight size={16} /></Link> : null}
             </div>
           ) : null}
 
@@ -2034,6 +2044,9 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
               Add to quote <ArrowRight size={17} />
             </button>
             {spec ? <a href={spec.specSheetUrl} download><Download size={15} /> Download specification</a> : null}
+            {specDownloads.map((resource) => (
+              <a key={resource.url} href={resource.url} download><Download size={15} /> {resource.label}</a>
+            ))}
             {spec ? <Link to="/contact" onClick={() => onRequestSample(spec.itemNumber)}>Request a sample</Link> : null}
             {cartItem ? <Link to="/cart">View quote cart</Link> : null}
           </div>
