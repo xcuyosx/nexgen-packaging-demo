@@ -902,40 +902,6 @@ main {
   overflow: hidden;
 }
 
-.site-back-nav {
-  min-height: 52px;
-  padding: 8px clamp(18px, 4vw, 56px);
-  display: flex;
-  align-items: center;
-  background: var(--site-canvas);
-}
-
-.site-back-button {
-  min-height: 36px;
-  margin-left: -10px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--green);
-  background: transparent;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.site-back-button:hover {
-  background: var(--soft-green);
-}
-
-.site-back-button:focus-visible {
-  outline: 2px solid var(--green);
-  outline-offset: 2px;
-}
-
 .hero-section {
   position: relative;
   min-height: min(820px, calc(100vh - 76px));
