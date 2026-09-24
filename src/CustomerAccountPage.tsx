@@ -613,8 +613,8 @@ export function CustomerOrderDetailPage({ account, orders, onReorder }: Customer
           </div>
 
           <div className="order-detail-item-list">
-            {order.items.map((item) => (
-              <article key={`${order.id}-${item.productId}`}>
+            {order.items.map((item, index) => (
+              <article key={`${order.id}-${item.productId}-${item.size}-${index}`}>
                 <span className="account-menu-icon"><PackageCheck size={20} /></span>
                 <div>
                   <strong>{item.productName}</strong>

@@ -15,8 +15,8 @@ type CartPageProps = {
   requestLoading: boolean
   requestError: string
   onContactChange: (field: keyof QuoteContact, value: string) => void
-  onQuantityChange: (productId: string, delta: number) => void
-  onRemove: (productId: string) => void
+  onQuantityChange: (lineId: string, delta: number) => void
+  onRemove: (lineId: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
 }
 
@@ -65,17 +65,21 @@ export function CartPage({
 
               <div className="cart-page-item-list">
                 {items.map((item) => (
-                  <article key={item.productId}>
-                    <Link className="cart-page-item-image" to={`/products/${item.product.id}`} aria-label={`Edit ${item.product.name}`}>
-                      <img src={item.product.image} alt="" />
-                      {item.artworkPreview ? <img className="cart-artwork-preview" src={item.artworkPreview} alt={`Artwork selected for ${item.product.name}`} /> : null}
+                  <article key={item.lineId}>
+                    <Link className={`cart-page-item-image${item.product.id === 'plastic-entree-containers' && item.component === 'Lid' ? ' cart-lid-placeholder' : ''}`} to={`/products/${item.product.id}?cartLine=${encodeURIComponent(item.lineId)}`} aria-label={`View ${item.productName || item.product.name}`}>
+                      {item.product.id === 'plastic-entree-containers' && item.component === 'Lid'
+                        ? <span aria-hidden="true"><PackageOpen size={22} /><small>Lid image pending</small></span>
+                        : <img src={item.product.image} alt="" />}
+                      {item.artworkPreview ? <img className="cart-artwork-preview" src={item.artworkPreview} alt={`Artwork selected for ${item.productName || item.product.name}`} /> : null}
                     </Link>
 
                     <div className="cart-page-item-copy">
-                      <span>{item.product.sku || item.product.category}</span>
-                      <Link to={`/products/${item.product.id}`}>{item.product.name}</Link>
+                      <span>{item.itemNumber ? `Item ${item.itemNumber}` : item.product.sku || item.product.category}</span>
+                      <Link to={`/products/${item.product.id}?cartLine=${encodeURIComponent(item.lineId)}`}>{item.productName || item.product.name}</Link>
                       <small>{item.size || item.product.sizes[0]}</small>
                       <small>{item.material || item.product.material}</small>
+                      {item.product.imageNote && item.component !== 'Lid' ? <small>Image: {item.product.imageNote}</small> : null}
+                      {item.product.id === 'plastic-entree-containers' && !item.component ? <small role="alert">Remove this line and choose a specific base or lid before requesting pricing.</small> : null}
                       {item.printColors > 0 ? (
                         <div className="cart-print-summary">
                           <FileImage size={15} />
@@ -94,12 +98,12 @@ export function CartPage({
                     </div>
 
                     <div className="cart-page-item-actions">
-                      <div className="quantity-control" aria-label={`Case quantity for ${item.product.name}`}>
-                        <button type="button" onClick={() => onQuantityChange(item.productId, -1)} aria-label={`Remove one case of ${item.product.name}`}><Minus size={15} /></button>
+                      <div className="quantity-control" aria-label={`Case quantity for ${item.productName || item.product.name}`}>
+                        <button type="button" onClick={() => onQuantityChange(item.lineId, -1)} aria-label={`Remove one case of ${item.productName || item.product.name}`}><Minus size={15} /></button>
                         <span>{item.cases}</span>
-                        <button type="button" onClick={() => onQuantityChange(item.productId, 1)} aria-label={`Add one case of ${item.product.name}`}><Plus size={15} /></button>
+                        <button type="button" onClick={() => onQuantityChange(item.lineId, 1)} aria-label={`Add one case of ${item.productName || item.product.name}`}><Plus size={15} /></button>
                       </div>
-                      <button className="cart-remove-item" type="button" onClick={() => onRemove(item.productId)} aria-label={`Remove ${item.product.name} from cart`}><Trash2 size={17} /></button>
+                      <button className="cart-remove-item" type="button" onClick={() => onRemove(item.lineId)} aria-label={`Remove ${item.productName || item.product.name} from cart`}><Trash2 size={17} /></button>
                     </div>
                   </article>
                 ))}

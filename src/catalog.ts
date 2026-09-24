@@ -32,6 +32,10 @@ export type ProductPublicSpec = {
 export type ProductSpecDownload = {
   label: string
   url: string
+  component: 'Base' | 'Lid'
+  itemNumber: string
+  material: string
+  productName: string
 }
 
 export type Product = {
@@ -424,20 +428,20 @@ export const products: Product[] = [
     optionGroups: [{ label: 'Container format', options: Object.values(entreeFormats) }],
     specDownloadsBySize: {
       [entreeFormats.small]: [
-        { label: 'Base specification · Item 620', url: '/specifications/NexGenPac-620-24oz-Small-Entree-Base-Spec-Sheet.pdf' },
-        { label: 'Lid specification · Item 620', url: '/specifications/NexGenPac-620-24-oz-Small-Entree-Lid-Spec-Sheet.pdf' },
+        { label: 'Base specification · Item 620', url: '/specifications/NexGenPac-620-24oz-Small-Entree-Base-Spec-Sheet.pdf', component: 'Base', itemNumber: '620', material: 'Polypropylene (PP)', productName: '24 oz Small Entrée Base' },
+        { label: 'Lid specification · Item 620', url: '/specifications/NexGenPac-620-24-oz-Small-Entree-Lid-Spec-Sheet.pdf', component: 'Lid', itemNumber: '620', material: 'Polyethylene terephthalate (PET)', productName: '24 oz Small Entrée Lid' },
       ],
       [entreeFormats.medium]: [
-        { label: 'Base specification · Item 817', url: '/specifications/NexGenPac-817-32-oz-Medium-Entree-Base-Spec-Sheet.pdf' },
-        { label: 'Lid specification · Item 820', url: '/specifications/NexGenPac-820-32-oz-Medium-Entree-Lid-Spec-Sheet.pdf' },
+        { label: 'Base specification · Item 817', url: '/specifications/NexGenPac-817-32-oz-Medium-Entree-Base-Spec-Sheet.pdf', component: 'Base', itemNumber: '817', material: 'Polypropylene (PP)', productName: '32 oz Medium Entrée Base' },
+        { label: 'Lid specification · Item 820', url: '/specifications/NexGenPac-820-32-oz-Medium-Entree-Lid-Spec-Sheet.pdf', component: 'Lid', itemNumber: '820', material: 'Polyethylene terephthalate (PET)', productName: '32 oz Medium Entrée Lid' },
       ],
       [entreeFormats.large]: [
-        { label: 'Base specification · Item 920', url: '/specifications/NexGenPac-920-64-oz-Large-Entree-Base-Spec-Sheet.pdf' },
-        { label: 'Lid specification · Item 920', url: '/specifications/NexGenPac-920-64-oz-Large-Entree-Lid-Spec-Sheet.pdf' },
+        { label: 'Base specification · Item 920', url: '/specifications/NexGenPac-920-64-oz-Large-Entree-Base-Spec-Sheet.pdf', component: 'Base', itemNumber: '920', material: 'Polypropylene (PP)', productName: '64 oz Large Entrée Base' },
+        { label: 'Lid specification · Item 920', url: '/specifications/NexGenPac-920-64-oz-Large-Entree-Lid-Spec-Sheet.pdf', component: 'Lid', itemNumber: '920', material: 'Polyethylene terephthalate (PET)', productName: '64 oz Large Entrée Lid' },
       ],
       [entreeFormats.square]: [
-        { label: 'Base specification · Item 520', url: '/specifications/NexGenPac-520-32-oz-Square-Entree-Base-Spec-Sheet.pdf' },
-        { label: 'Lid specification · Item 520', url: '/specifications/NexGenPac-520-32-oz-Square-Entree-Lid-Spec-Sheet.pdf' },
+        { label: 'Base specification · Item 520', url: '/specifications/NexGenPac-520-32-oz-Square-Entree-Base-Spec-Sheet.pdf', component: 'Base', itemNumber: '520', material: 'Polypropylene (PP)', productName: '32 oz Square Entrée Base' },
+        { label: 'Lid specification · Item 520', url: '/specifications/NexGenPac-520-32-oz-Square-Entree-Lid-Spec-Sheet.pdf', component: 'Lid', itemNumber: '520', material: 'Polypropylene (PP)', productName: '32 oz Square Entrée Lid' },
       ],
     },
   }),

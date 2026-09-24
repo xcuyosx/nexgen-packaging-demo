@@ -68,6 +68,7 @@ import {
   updateCustomerPassword,
 } from './customerAccount'
 import type { CustomerAccount, CustomerOrder, CustomerOrderLine, CustomerQuoteHistoryEntry, CustomerSession } from './customerAccount'
+import { addConfiguredCartItem, buildQuoteRequestLine, changeCartLineCases, removeCartLine } from './storefrontCart'
 import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
 import './App.css'
 
@@ -438,51 +439,26 @@ function App() {
 
   const totalCases = cartDetails.reduce((total, item) => total + item.cases, 0)
 
-  const updateCart = (productId: string, delta: number, size?: string, configuration?: CartConfiguration) => {
+  const addToCart = (productId: string, cases: number, size?: string, configuration?: CartConfiguration) => {
     setQuoteRequestReady(false)
     setQuoteRequestNumber('')
     setQuoteRequestError('')
-    setCart((current) => {
-      const existing = current.find((item) => item.productId === productId)
-      if (!existing && delta > 0) {
-        return [...current, {
-          productId,
-          cases: delta,
-          size,
-          material: configuration?.material,
-          printColors: configuration?.printColors || 0,
-          inkColors: configuration?.inkColors,
-          artworkName: configuration?.artworkName,
-          artworkPreview: configuration?.artworkPreview,
-          artworkPosition: configuration?.artworkPosition,
-        }]
-      }
-
-      return current
-        .map((item) =>
-          item.productId === productId
-            ? {
-                ...item,
-                cases: Math.max(0, item.cases + delta),
-                size: size ?? item.size,
-                material: configuration?.material ?? item.material,
-                printColors: configuration?.printColors ?? item.printColors,
-                inkColors: configuration?.inkColors ?? item.inkColors,
-                artworkName: configuration?.artworkName ?? item.artworkName,
-                artworkPreview: configuration?.artworkPreview ?? item.artworkPreview,
-                artworkPosition: configuration?.artworkPosition ?? item.artworkPosition,
-              }
-            : item,
-        )
-        .filter((item) => item.cases > 0)
-    })
+    const newLineId = crypto.randomUUID()
+    setCart((current) => addConfiguredCartItem(current, productId, cases, size, configuration, newLineId))
   }
 
-  const removeCartItem = (productId: string) => {
+  const changeCartQuantity = (lineId: string, delta: number) => {
     setQuoteRequestReady(false)
     setQuoteRequestNumber('')
     setQuoteRequestError('')
-    setCart((current) => current.filter((item) => item.productId !== productId))
+    setCart((current) => changeCartLineCases(current, lineId, delta))
+  }
+
+  const removeCartItem = (lineId: string) => {
+    setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
+    setQuoteRequestError('')
+    setCart((current) => removeCartLine(current, lineId))
   }
 
   const updateQuoteContact = (field: keyof QuoteContact, value: string) => {
@@ -517,20 +493,25 @@ function App() {
   }
 
   const reorderFromHistory = (items: CustomerOrderLine[]) => {
-    setCart((current) => {
-      const next = new Map(current.map((item) => [item.productId, item]))
-      items.forEach((item) => {
-        if (!productMap.has(item.productId)) return
-        const existing = next.get(item.productId)
-        next.set(item.productId, {
-          productId: item.productId,
-          cases: (existing?.cases || 0) + item.cases,
-          printColors: item.customPrint ? 1 : 0,
-          size: item.size,
-        })
-      })
-      return Array.from(next.values())
-    })
+    setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
+    setQuoteRequestError('')
+    const newLineIds = items.map(() => crypto.randomUUID())
+    setCart((current) => items.reduce((next, item, index) => {
+      const product = productMap.get(item.productId)
+      if (!product) return next
+      const component = product.id === 'plastic-entree-containers'
+        ? (item.productName.includes(' Base') ? 'Base' : item.productName.includes(' Lid') ? 'Lid' : undefined)
+        : undefined
+      const entreeSpec = component && product.specDownloadsBySize?.[item.size]?.find((spec) => spec.component === component)
+      return addConfiguredCartItem(next, item.productId, item.cases, item.size, {
+        component,
+        itemNumber: entreeSpec?.itemNumber || (component ? item.sku : undefined),
+        productName: entreeSpec?.productName || (component ? item.productName : undefined),
+        material: entreeSpec?.material,
+        printColors: item.customPrint ? 1 : 0,
+      }, newLineIds[index])
+    }, current))
   }
 
   const sendQuoteRequest = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -542,6 +523,10 @@ function App() {
     setQuoteRequestReady(false)
     if (!customerSession) {
       setQuoteRequestError('Sign in or create a customer account before submitting this quote request.')
+      return
+    }
+    if (cartDetails.some((item) => item.product.id === 'plastic-entree-containers' && (!item.component || !item.itemNumber))) {
+      setQuoteRequestError('Choose a specific base or lid for each entrée item. Remove the unconfigured line and add the exact component from its product page.')
       return
     }
 
@@ -559,21 +544,7 @@ function App() {
         shipping: receivingLocation ? { ...receivingLocation } : {},
         purchaseOrder: buyer.purchaseOrder,
         notes: buyer.notes,
-        lines: cartDetails.map((item) => ({
-          productId: item.product.id,
-          sku: item.product.sku || '',
-          productName: item.product.name,
-          category: item.product.category,
-          material: item.material || item.product.material,
-          dimensions: item.product.description,
-          casePack: item.product.casePack,
-          cases: item.cases,
-          size: item.size || item.product.sizes[0],
-          printColors: item.printColors,
-          inkColors: item.inkColors || [],
-          artworkName: item.artworkName || '',
-          artworkPosition: item.artworkPosition,
-        })),
+        lines: cartDetails.map(buildQuoteRequestLine),
       })
       setQuoteRequestNumber(result.requestNumber)
       setQuoteRequestReady(true)
@@ -771,7 +742,7 @@ function App() {
               <CustomProductBuilderPage
                 products={allProducts}
                 onAdd={(productId, cases, size, configuration) =>
-                  updateCart(productId, cases, size, configuration)
+                  addToCart(productId, cases, size, configuration)
                 }
               />
             }
@@ -788,7 +759,7 @@ function App() {
               <ProductDetailPage
                 products={allProducts}
                 cart={cart}
-                onAdd={(productId, cases, size, configuration) => updateCart(productId, cases, size, configuration)}
+                onAdd={(productId, cases, size, configuration) => addToCart(productId, cases, size, configuration)}
                 onRequestSample={(itemNumber) => setContactRequest((current) => ({
                   ...current,
                   need: 'sample',
@@ -812,7 +783,7 @@ function App() {
                 requestLoading={quoteRequestLoading}
                 requestError={quoteRequestError}
                 onContactChange={updateQuoteContact}
-                onQuantityChange={(productId, delta) => updateCart(productId, delta)}
+                onQuantityChange={changeCartQuantity}
                 onRemove={removeCartItem}
                 onSubmit={sendQuoteRequest}
               />
@@ -1696,14 +1667,18 @@ type ProductDetailPageProps = {
 
 function ProductDetailPage({ products, cart, onAdd, onRequestSample }: ProductDetailPageProps) {
   const { productId } = useParams()
+  const { search } = useLocation()
   const product = products.find((item) => item.id === productId)
 
   if (!product) {
     return <Navigate to="/products" replace />
   }
 
-  const cartItem = cart.find((item) => item.productId === product.id)
-  return <ProductDetailContent key={product.id} product={product} products={products} cartItem={cartItem} onAdd={onAdd} onRequestSample={onRequestSample} />
+  const requestedLineId = new URLSearchParams(search).get('cartLine') || ''
+  const cartItem = requestedLineId
+    ? cart.find((item) => item.lineId === requestedLineId && item.productId === product.id)
+    : cart.find((item) => item.productId === product.id)
+  return <ProductDetailContent key={`${product.id}:${requestedLineId}`} product={product} products={products} cartItem={cartItem} onAdd={onAdd} onRequestSample={onRequestSample} />
 }
 
 type ProductDetailContentProps = {
@@ -1715,6 +1690,7 @@ type ProductDetailContentProps = {
 }
 
 function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSample }: ProductDetailContentProps) {
+  const isEntreeFamily = product.id === 'plastic-entree-containers'
   const optionGroups = product.optionGroups || [{ label: 'Size or format', options: product.sizes }]
   const firstOption = optionGroups.length > 1
     ? `${optionGroups[0]?.label}: ${optionGroups[0]?.options[0] || ''}`
@@ -1724,9 +1700,8 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
     ? product.sizes.find((size) => size.startsWith(`${savedSize.split(' - ')[0]} ·`))
     : savedSize
   const [selectedSize, setSelectedSize] = useState(restoredSize || firstOption)
-  const [selectedMaterial, setSelectedMaterial] = useState(
-    product.id === 'plastic-entree-containers' ? product.material : cartItem?.material || product.materials?.[0] || product.material,
-  )
+  const [selectedMaterialChoice, setSelectedMaterialChoice] = useState(cartItem?.material || product.materials?.[0] || product.material)
+  const [selectedComponent, setSelectedComponent] = useState<'Base' | 'Lid'>(cartItem?.component || 'Base')
   const [selectedQuantity, setSelectedQuantity] = useState(1)
   const [printColors, setPrintColors] = useState<PrintColorCount>(cartItem?.printColors || 0)
   const [artworkName, setArtworkName] = useState(cartItem?.artworkName || '')
@@ -1736,6 +1711,8 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
   const printableProduct = Boolean(product.maxPrintColors)
   const spec = product.publicSpec
   const specDownloads = product.specDownloadsBySize?.[selectedSize] || []
+  const selectedComponentSpec = isEntreeFamily ? specDownloads.find((resource) => resource.component === selectedComponent) : undefined
+  const selectedMaterial = selectedComponentSpec?.material || selectedMaterialChoice
   const relatedPool = product.division
     ? products.filter((item) => item.division === product.division)
     : products
@@ -1765,12 +1742,18 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
     reader.readAsDataURL(file)
   }
 
-  const addConfiguredProduct = () => onAdd(product.id, selectedQuantity, selectedSize, {
-    material: selectedMaterial,
-    printColors: printableProduct ? printColors : 0,
-    artworkName: printableProduct ? artworkName : undefined,
-    artworkPreview: printableProduct ? artworkPreview : undefined,
-  })
+  const addConfiguredProduct = () => {
+    if (isEntreeFamily && !selectedComponentSpec) return
+    onAdd(product.id, selectedQuantity, selectedSize, {
+      material: selectedMaterial,
+      component: selectedComponentSpec?.component,
+      itemNumber: selectedComponentSpec?.itemNumber,
+      productName: selectedComponentSpec?.productName,
+      printColors: printableProduct ? printColors : 0,
+      artworkName: printableProduct ? artworkName : undefined,
+      artworkPreview: printableProduct ? artworkPreview : undefined,
+    })
+  }
 
   return (
     <section className="product-detail-page page-section">
@@ -1869,12 +1852,27 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
                 onClick={() => setMobileStep((current) => current === 2 ? 0 : 2)}
               >
                 <span className="product-step-number">2</span>
-                <span className="product-step-label"><strong>Material</strong><small>{selectedMaterial}</small></span>
+                <span className="product-step-label"><strong>{isEntreeFamily ? 'Base or lid' : 'Material'}</strong><small>{selectedComponentSpec ? `${selectedComponentSpec.component} · Item ${selectedComponentSpec.itemNumber}` : selectedMaterial}</small></span>
                 <ChevronRight className="product-step-chevron" size={18} />
               </button>
             </legend>
             <div className="product-choice-grid material-choice-grid product-step-content" id={`product-material-options-${product.id}`}>
-              {(product.materials || [product.material]).map((material) => (
+              {isEntreeFamily ? specDownloads.map((resource) => (
+                <label key={resource.component} className={selectedComponent === resource.component ? 'selected' : ''}>
+                  <input
+                    type="radio"
+                    name={`product-component-${product.id}`}
+                    value={resource.component}
+                    checked={selectedComponent === resource.component}
+                    onChange={() => {
+                      setSelectedComponent(resource.component)
+                      setMobileStep(3)
+                    }}
+                  />
+                  <span><strong>{resource.component} · Item {resource.itemNumber}</strong><small>{resource.material}</small></span>
+                  {selectedComponent === resource.component ? <Check size={18} /> : null}
+                </label>
+              )) : (product.materials || [product.material]).map((material) => (
                 <label key={material} className={selectedMaterial === material ? 'selected' : ''}>
                   <input
                     type="radio"
@@ -1882,7 +1880,7 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
                     value={material}
                     checked={selectedMaterial === material}
                     onChange={() => {
-                      setSelectedMaterial(material)
+                      setSelectedMaterialChoice(material)
                       setMobileStep(3)
                     }}
                   />
@@ -1890,6 +1888,7 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
                   {selectedMaterial === material ? <Check size={18} /> : null}
                 </label>
               ))}
+              {isEntreeFamily ? <p className="product-component-note">Add bases and lids separately to choose a case quantity for each.</p> : null}
             </div>
           </fieldset>
 
@@ -1984,9 +1983,10 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
               className="primary-button"
               type="button"
               onClick={addConfiguredProduct}
+              disabled={isEntreeFamily && !selectedComponentSpec}
             >
               <PackageOpen size={18} />
-              Add to quote
+              {selectedComponentSpec ? `Add ${selectedComponentSpec.component.toLowerCase()} to quote` : 'Add to quote'}
               <ArrowRight size={18} />
             </button>
             {cartItem ? <Link className="product-view-cart" to="/cart">View cart <ArrowRight size={17} /></Link> : null}
@@ -2016,6 +2016,13 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
               <dd>{selectedSize}</dd>
               <Check size={17} aria-hidden="true" />
             </div>
+            {selectedComponentSpec ? (
+              <div>
+                <dt>Component / item</dt>
+                <dd>{selectedComponentSpec.component} · Item {selectedComponentSpec.itemNumber}</dd>
+                <Check size={17} aria-hidden="true" />
+              </div>
+            ) : null}
             <div>
               <dt>Material</dt>
               <dd>{selectedMaterial}</dd>
@@ -2040,8 +2047,8 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
           </dl>
 
           <div className="product-quote-summary-actions">
-            <button className="primary-button" type="button" onClick={addConfiguredProduct}>
-              Add to quote <ArrowRight size={17} />
+            <button className="primary-button" type="button" onClick={addConfiguredProduct} disabled={isEntreeFamily && !selectedComponentSpec}>
+              {selectedComponentSpec ? `Add ${selectedComponentSpec.component.toLowerCase()} to quote` : 'Add to quote'} <ArrowRight size={17} />
             </button>
             {spec ? <a href={spec.specSheetUrl} download><Download size={15} /> Download specification</a> : null}
             {specDownloads.map((resource) => (
