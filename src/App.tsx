@@ -42,6 +42,7 @@ import {
 import type { Product, ProductDivision } from './catalog'
 import { industries } from './industries'
 import { fetchStorefrontProducts, storefrontFallbackProducts } from './storefrontCatalog'
+import { productMatchesSearch } from './productSearch'
 import { TradeShowCalendar } from './TradeShowCalendar'
 import { CustomerAccountPage, CustomerOrderDetailPage } from './CustomerAccountPage'
 import { CustomerLoginPage } from './CustomerLoginPage'
@@ -1394,8 +1395,7 @@ function ProductCollectionPage({ division, products }: ProductCollectionPageProp
   const categories = ['All', ...Array.from(new Set(products.map((product) => product.category)))]
   const filteredProducts = products.filter((product) => {
     const matchesCategory = category === 'All' || product.category === category
-    const text = `${product.name} ${product.description} ${product.material} ${product.badges.join(' ')}`.toLowerCase()
-    return matchesCategory && text.includes(query.trim().toLowerCase())
+    return matchesCategory && productMatchesSearch(product, query)
   })
 
   return (
