@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff } from 'lucide-react'
 
 type AuthMode = 'signin' | 'register' | 'request-reset' | 'set-password'
@@ -31,7 +31,12 @@ export function CustomerLoginPage({
   onPasswordUpdate,
   onClearFeedback,
 }: CustomerLoginPageProps) {
-  const [mode, setMode] = useState<AuthMode>(recoveryToken ? 'set-password' : recoveryError ? 'request-reset' : 'signin')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const requestedMode = new URLSearchParams(location.search).get('mode')
+  const mode: AuthMode = recoveryToken ? 'set-password'
+    : recoveryError || requestedMode === 'reset' ? 'request-reset'
+      : requestedMode === 'register' ? 'register' : 'signin'
   const [contactName, setContactName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
@@ -39,7 +44,7 @@ export function CustomerLoginPage({
   const [showPassword, setShowPassword] = useState(false)
 
   const switchMode = (next: AuthMode, keepFeedback = false) => {
-    setMode(next)
+    navigate(next === 'register' ? '/account?mode=register' : next === 'request-reset' ? '/account?mode=reset' : '/account')
     setPassword('')
     setShowPassword(false)
     if (!keepFeedback) onClearFeedback()

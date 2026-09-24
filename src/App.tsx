@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -106,8 +106,28 @@ function RouteScrollManager() {
   return null
 }
 
+function backDestination(pathname: string, search: string) {
+  if (pathname.startsWith('/account/orders/')) return { path: '/account?view=orders', label: 'orders' }
+  if (pathname === '/account' && (new URLSearchParams(search).has('view') || new URLSearchParams(search).has('mode'))) {
+    return { path: '/account', label: 'account' }
+  }
+  if (pathname === '/cart' || pathname.startsWith('/products/')) return { path: '/products', label: 'products' }
+  if (pathname.startsWith('/industries/')) return { path: '/industries', label: 'industries' }
+  return { path: '/', label: 'home' }
+}
+
 function App() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
+  const navigate = useNavigate()
+  const fallback = backDestination(pathname, search)
+  const hasStorefrontHistory = Number(window.history.state?.idx) > 0
+  const goBack = () => {
+    if (Number(window.history.state?.idx) > 0) {
+      navigate(-1)
+    } else {
+      navigate(fallback.path, { replace: true })
+    }
+  }
   const [passwordRecovery, setPasswordRecovery] = useState(readCustomerPasswordRecoveryLink)
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(() => passwordRecovery ? null : loadCustomerSession())
   const customerSessionToken = customerSession?.token || ''
@@ -650,6 +670,14 @@ function App() {
       </header>
 
       <main id="top">
+        {pathname !== '/' ? (
+          <nav className="site-back-nav" aria-label="Page navigation">
+            <button className="site-back-button" type="button" onClick={goBack}>
+              <ArrowLeft size={18} aria-hidden="true" />
+              {hasStorefrontHistory ? 'Back' : `Back to ${fallback.label}`}
+            </button>
+          </nav>
+        ) : null}
         <Routes>
           <Route
             path="/"
