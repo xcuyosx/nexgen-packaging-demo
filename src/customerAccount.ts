@@ -118,6 +118,20 @@ export type CustomerQuoteRequestInput = {
   lines: CustomerQuoteRequestLine[]
 }
 
+export type CustomerQuoteHistoryItem = {
+  sku: string
+  productName: string
+  cases: number
+}
+
+export type CustomerQuoteHistoryEntry = {
+  requestNumber: string
+  submittedAt: string
+  status: string
+  issuedQuoteNumber: string
+  items: CustomerQuoteHistoryItem[]
+}
+
 const accountStorageKey = 'nexgen-customer-account-v1'
 const orderStorageKey = 'nexgen-customer-orders-v1'
 const sessionStorageKey = 'nexgen-customer-session-v1'
@@ -544,6 +558,39 @@ export async function submitCustomerQuoteRequest(
   if (response.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
   if (!response.ok) throw new Error(apiErrorMessage(body, 'Unable to submit your quote request.'))
   return { requestNumber }
+}
+
+export async function fetchCustomerQuoteHistory(token: string, signal?: AbortSignal): Promise<CustomerQuoteHistoryEntry[]> {
+  if (!useSupabaseCustomerAccounts) return []
+  const response = await supabaseRequest('rpc/customer_quote_history', token, {
+    method: 'POST',
+    body: '{}',
+    signal,
+  })
+  const body = await readJson(response)
+  if (response.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
+  if (!response.ok) throw new Error(apiErrorMessage(body, 'Unable to load your quote requests.'))
+  if (!Array.isArray(body)) throw new Error('The quote history response is invalid.')
+
+  return body.map((value): CustomerQuoteHistoryEntry | null => {
+    if (!value || typeof value !== 'object') return null
+    const row = value as Record<string, unknown>
+    const requestNumber = String(row.request_number || '')
+    if (!requestNumber) return null
+    const items = Array.isArray(row.items) ? row.items : []
+    return {
+      requestNumber,
+      submittedAt: String(row.submitted_at || ''),
+      status: String(row.customer_status || 'Preparing your quote'),
+      issuedQuoteNumber: String(row.issued_quote_number || ''),
+      items: items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+        .map((item) => ({
+          sku: String(item.sku || ''),
+          productName: String(item.productName || 'Packaging product'),
+          cases: Math.max(0, Number(item.cases || 0)),
+        })),
+    }
+  }).filter((entry): entry is CustomerQuoteHistoryEntry => Boolean(entry))
 }
 
 async function fetchCustomerAccountWithRetry(token: string) {

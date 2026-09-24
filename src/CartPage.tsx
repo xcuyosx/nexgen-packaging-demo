@@ -11,6 +11,7 @@ type CartPageProps = {
   signedIn: boolean
   contact: QuoteContact
   requestReady: boolean
+  requestNumber: string
   requestLoading: boolean
   requestError: string
   onContactChange: (field: keyof QuoteContact, value: string) => void
@@ -26,6 +27,7 @@ export function CartPage({
   signedIn,
   contact,
   requestReady,
+  requestNumber,
   requestLoading,
   requestError,
   onContactChange,
@@ -149,6 +151,11 @@ export function CartPage({
                   {requestReady ? <Check size={18} /> : <Mail size={18} />}
                   {requestLoading ? 'Submitting…' : requestReady ? 'Request submitted' : 'Request quote'}
                 </button>
+                {requestReady && requestNumber ? (
+                  <p className="quote-request-receipt" role="status">
+                    Request <strong>{requestNumber}</strong> was received. <Link to="/account?view=quotes">Track it in your account</Link>.
+                  </p>
+                ) : null}
               </form>
 
               {!signedIn ? <p className="quote-request-account-note"><Link to="/account">Sign in or create an account</Link> to submit this request and use saved billing and delivery locations.</p> : null}

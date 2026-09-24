@@ -25,14 +25,19 @@ import type {
   CustomerAccount,
   CustomerOrder,
   CustomerOrderLine,
+  CustomerQuoteHistoryEntry,
 } from './customerAccount'
 import { createCustomerRecordId } from './customerAccount'
 
-type AccountView = 'overview' | 'profile' | 'orders' | 'billing' | 'locations'
+type AccountView = 'overview' | 'profile' | 'quotes' | 'orders' | 'billing' | 'locations'
 
 type CustomerAccountPageProps = {
   account: CustomerAccount
   orders: CustomerOrder[]
+  quoteRequests: CustomerQuoteHistoryEntry[]
+  quoteRequestsStatus: 'loading' | 'ready' | 'error'
+  quoteRequestsError: string
+  onRefreshQuoteRequests: () => void
   onSave: (account: CustomerAccount) => void | Promise<void>
   onSignOut: () => void | Promise<void>
   syncStatus: 'loading' | 'connected' | 'saving' | 'saved' | 'offline'
@@ -72,6 +77,17 @@ const emptyLocation = {
   instructions: '',
 }
 
+function accountViewFromSearch(search: string): AccountView {
+  const view = new URLSearchParams(search).get('view')
+  return view === 'quotes' || view === 'orders' || view === 'profile' || view === 'billing' || view === 'locations'
+    ? view : 'overview'
+}
+
+function formatAccountDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'recently' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function AccountMenuRow({ icon, title, description, onClick }: AccountMenuRowProps) {
   return (
     <button className="account-menu-row" type="button" onClick={onClick}>
@@ -102,10 +118,11 @@ function AccountDetailHeader({ title, description, onBack, action }: AccountDeta
   )
 }
 
-export function CustomerAccountPage({ account, orders, onSave, onSignOut, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
+export function CustomerAccountPage({ account, orders, quoteRequests, quoteRequestsStatus, quoteRequestsError, onRefreshQuoteRequests, onSave, onSignOut, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [activeView, setActiveView] = useState<AccountView>(() => new URLSearchParams(location.search).get('view') === 'orders' ? 'orders' : 'overview')
+  const activeView = accountViewFromSearch(location.search)
+  const setActiveView = (view: AccountView) => navigate(view === 'overview' ? '/account' : `/account?view=${view}`)
   const [draft, setDraft] = useState<CustomerAccount | null>(null)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -208,7 +225,7 @@ export function CustomerAccountPage({ account, orders, onSave, onSignOut, syncSt
               <div>
                 <p className="eyebrow">Customer account</p>
                 <h1>{accountName}</h1>
-                <p>Orders, payments, billing, and delivery information in one place.</p>
+                <p>Quote requests, orders, payments, billing, and delivery information in one place.</p>
               </div>
               <div className="account-home-actions">
                 <button className="account-sign-out" type="button" onClick={() => void onSignOut()}>
@@ -235,7 +252,13 @@ export function CustomerAccountPage({ account, orders, onSave, onSignOut, syncSt
 
             <div className="account-home-grid">
               <section className="account-group" aria-labelledby="account-purchases-heading">
-                <h2 id="account-purchases-heading">Purchases</h2>
+                <h2 id="account-purchases-heading">Requests & purchases</h2>
+                <AccountMenuRow
+                  icon={<ReceiptText size={21} />}
+                  title="Quote requests"
+                  description={quoteRequests.length ? `${quoteRequests.length} recent request${quoteRequests.length === 1 ? '' : 's'}` : 'Track requests for pricing'}
+                  onClick={() => setActiveView('quotes')}
+                />
                 <AccountMenuRow
                   icon={<PackageCheck size={21} />}
                   title="Orders"
@@ -327,6 +350,60 @@ export function CustomerAccountPage({ account, orders, onSave, onSignOut, syncSt
                         <ChevronRight size={20} aria-hidden="true" />
                       </span>
                     </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {activeView === 'quotes' && (
+          <>
+            <AccountDetailHeader
+              title="Quote requests"
+              description="See the requests you've sent to NexGen and their progress."
+              onBack={returnToAccount}
+              action={<Link className="account-primary-action" to="/products"><Plus size={17} /> New request</Link>}
+            />
+            <section className="account-content-card" aria-label="Quote request history">
+              {quoteRequestsStatus === 'loading' && !quoteRequests.length ? (
+                <div className="account-empty-state"><ReceiptText size={30} /><strong>Loading quote requests…</strong></div>
+              ) : quoteRequestsStatus === 'error' && !quoteRequests.length ? (
+                <div className="account-empty-state" role="alert">
+                  <ReceiptText size={30} />
+                  <strong>Could not load quote requests</strong>
+                  <span>{quoteRequestsError}</span>
+                  <button type="button" onClick={onRefreshQuoteRequests}>Try again</button>
+                </div>
+              ) : quoteRequests.length === 0 ? (
+                <div className="account-empty-state">
+                  <ReceiptText size={30} />
+                  <strong>No quote requests yet</strong>
+                  <span>Requests submitted through this website appear here.</span>
+                  <Link to="/products">Browse products <ArrowRight size={16} /></Link>
+                </div>
+              ) : (
+                <div className="account-quote-list">
+                  {quoteRequestsStatus === 'error' ? <p className="account-quote-error" role="alert">{quoteRequestsError} Showing the last loaded list. <button type="button" onClick={onRefreshQuoteRequests}>Try again</button></p> : null}
+                  {quoteRequests.map((request) => (
+                    <article className="account-quote-summary" key={request.requestNumber}>
+                      <div className="account-quote-summary-header">
+                        <div>
+                          <strong>{request.requestNumber}</strong>
+                          <small>Submitted {formatAccountDate(request.submittedAt)}</small>
+                        </div>
+                        <span className="account-quote-status">{request.status}</span>
+                      </div>
+                      <ul>
+                        {request.items.map((item, index) => (
+                          <li key={`${item.sku}-${index}`}>
+                            <span>{item.sku ? `Item ${item.sku} · ` : ''}{item.productName}</span>
+                            <strong>{item.cases} case{item.cases === 1 ? '' : 's'}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                      {request.issuedQuoteNumber ? <p>Issued quote <strong>{request.issuedQuoteNumber}</strong></p> : <p>NexGen will provide pricing when your quote is ready.</p>}
+                    </article>
                   ))}
                 </div>
               )}

@@ -601,6 +601,22 @@
   line-height: 1.4;
 }
 
+.quote-request-receipt {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 11px 12px;
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--soft-green);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.quote-request-receipt a {
+  color: var(--green);
+  font-weight: 900;
+}
+
 .quote-request-account-note,
 .quote-request-disclaimer {
   display: block;
@@ -5691,6 +5707,87 @@ main {
   letter-spacing: -0.025em;
 }
 
+.account-quote-list {
+  display: grid;
+  gap: 14px;
+}
+
+.account-quote-summary {
+  padding: 18px 20px;
+  border: 1px solid rgba(20, 47, 44, 0.11);
+  border-radius: 12px;
+  background: #fbfcfb;
+}
+
+.account-quote-summary-header,
+.account-quote-summary li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.account-quote-summary-header strong,
+.account-quote-summary-header small {
+  display: block;
+}
+
+.account-quote-summary-header strong {
+  overflow-wrap: anywhere;
+}
+
+.account-quote-summary-header small,
+.account-quote-summary p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.account-quote-status {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: var(--green);
+  background: var(--soft-green);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-quote-summary ul {
+  margin: 17px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid rgba(20, 47, 44, 0.1);
+  list-style: none;
+}
+
+.account-quote-summary li + li {
+  margin-top: 9px;
+}
+
+.account-quote-summary li strong {
+  white-space: nowrap;
+}
+
+.account-quote-summary p {
+  margin-bottom: 0;
+}
+
+.account-quote-error {
+  margin: 0;
+  color: #8d402a;
+}
+
+.account-quote-error button,
+.account-empty-state > button {
+  padding: 0;
+  border: 0;
+  color: var(--green);
+  background: transparent;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .account-section-heading > button,
 .payment-method-card > button {
   color: var(--green);
@@ -6776,6 +6873,12 @@ footer {
 }
 
 @media (max-width: 560px) {
+  .account-quote-summary-header,
+  .account-quote-summary li {
+    flex-direction: column;
+    gap: 6px;
+  }
+
   .custom-builder-section {
     padding-inline: 0;
     padding-bottom: 64px;

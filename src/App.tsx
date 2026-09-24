@@ -50,6 +50,7 @@ import {
   clearCustomerSession,
   emptyCustomerAccount,
   fetchCustomerAccountSync,
+  fetchCustomerQuoteHistory,
   loadCustomerSession,
   loadCustomerAccount,
   loadCustomerOrders,
@@ -66,7 +67,7 @@ import {
   submitCustomerQuoteRequest,
   updateCustomerPassword,
 } from './customerAccount'
-import type { CustomerAccount, CustomerOrder, CustomerOrderLine, CustomerSession } from './customerAccount'
+import type { CustomerAccount, CustomerOrder, CustomerOrderLine, CustomerQuoteHistoryEntry, CustomerSession } from './customerAccount'
 import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
 import './App.css'
 
@@ -114,6 +115,21 @@ function App() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerAccount, setCustomerAccount] = useState<CustomerAccount>(() => customerSession ? loadCustomerAccount() : emptyCustomerAccount)
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(() => customerSession ? loadCustomerOrders() : [])
+  const [customerQuoteHistoryResult, setCustomerQuoteHistoryResult] = useState<{
+    userId: string
+    refresh: number
+    requests: CustomerQuoteHistoryEntry[]
+    error: string
+  } | null>(null)
+  const [quoteHistoryRefresh, setQuoteHistoryRefresh] = useState(0)
+  const quoteHistoryCurrent = customerQuoteHistoryResult !== null
+    && customerSession !== null
+    && customerQuoteHistoryResult.userId === customerSession.userId
+    && customerQuoteHistoryResult.refresh === quoteHistoryRefresh
+  const customerQuoteHistory = quoteHistoryCurrent ? customerQuoteHistoryResult.requests : []
+  const customerQuoteHistoryStatus = !customerSessionToken ? 'ready'
+    : !quoteHistoryCurrent ? 'loading' : customerQuoteHistoryResult.error ? 'error' : 'ready'
+  const customerQuoteHistoryError = quoteHistoryCurrent ? customerQuoteHistoryResult.error : ''
   const [customerSyncStatus, setCustomerSyncStatus] = useState<'loading' | 'connected' | 'saving' | 'saved' | 'offline'>(customerSession ? 'loading' : 'offline')
   const [customerLastSyncedAt, setCustomerLastSyncedAt] = useState('')
   const [customerLoginLoading, setCustomerLoginLoading] = useState(false)
@@ -123,6 +139,7 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [headerBrandVisible, setHeaderBrandVisible] = useState(pathname !== '/')
   const [quoteRequestReady, setQuoteRequestReady] = useState(false)
+  const [quoteRequestNumber, setQuoteRequestNumber] = useState('')
   const [quoteRequestLoading, setQuoteRequestLoading] = useState(false)
   const [quoteRequestError, setQuoteRequestError] = useState('')
   const [buyer, setBuyer] = useState<QuoteContact>({
@@ -237,6 +254,31 @@ function App() {
       })
     return () => controller.abort()
   }, [customerSession?.expiresAt, customerSession?.provider, customerSession?.refreshToken, customerSessionToken])
+
+  useEffect(() => {
+    if (!customerSessionToken) return
+    if (
+      customerSession?.provider === 'supabase' &&
+      customerSession.refreshToken &&
+      Date.parse(customerSession.expiresAt) <= Date.now() + 30_000
+    ) return
+    const controller = new AbortController()
+    fetchCustomerQuoteHistory(customerSessionToken, controller.signal)
+      .then((requests) => {
+        if (controller.signal.aborted) return
+        setCustomerQuoteHistoryResult({ userId: customerSession?.userId || '', refresh: quoteHistoryRefresh, requests, error: '' })
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setCustomerQuoteHistoryResult({
+          userId: customerSession?.userId || '',
+          refresh: quoteHistoryRefresh,
+          requests: [],
+          error: error instanceof Error ? error.message : 'Unable to load your quote requests.',
+        })
+      })
+    return () => controller.abort()
+  }, [customerSession?.expiresAt, customerSession?.provider, customerSession?.refreshToken, customerSession?.userId, customerSessionToken, quoteHistoryRefresh])
 
   const signInCustomer = async (email: string, password: string) => {
     setCustomerLoginLoading(true)
@@ -366,6 +408,8 @@ function App() {
     setCustomerSession(null)
     setCustomerAccount(emptyCustomerAccount)
     setCustomerOrders([])
+    setCustomerQuoteHistoryResult(null)
+    setQuoteRequestNumber('')
     setCustomerLastSyncedAt('')
     setCustomerSyncStatus('offline')
     setCustomerLoginError('')
@@ -396,6 +440,7 @@ function App() {
 
   const updateCart = (productId: string, delta: number, size?: string, configuration?: CartConfiguration) => {
     setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
     setQuoteRequestError('')
     setCart((current) => {
       const existing = current.find((item) => item.productId === productId)
@@ -435,12 +480,14 @@ function App() {
 
   const removeCartItem = (productId: string) => {
     setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
     setQuoteRequestError('')
     setCart((current) => current.filter((item) => item.productId !== productId))
   }
 
   const updateQuoteContact = (field: keyof QuoteContact, value: string) => {
     setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
     setQuoteRequestError('')
     setBuyer((current) => ({ ...current, [field]: value }))
   }
@@ -502,7 +549,7 @@ function App() {
     const receivingLocation = customerAccount.receivingLocations.find((location) => location.id === buyer.receivingLocationId)
     setQuoteRequestLoading(true)
     try {
-      await submitCustomerQuoteRequest(customerSession.token, {
+      const result = await submitCustomerQuoteRequest(customerSession.token, {
         contact: {
           name: buyer.name,
           company: buyer.company,
@@ -528,7 +575,9 @@ function App() {
           artworkPosition: item.artworkPosition,
         })),
       })
+      setQuoteRequestNumber(result.requestNumber)
       setQuoteRequestReady(true)
+      setQuoteHistoryRefresh((current) => current + 1)
     } catch (error) {
       setQuoteRequestError(error instanceof Error ? error.message : 'Unable to submit this quote request.')
     } finally {
@@ -759,6 +808,7 @@ function App() {
                 signedIn={Boolean(customerSession)}
                 contact={buyer}
                 requestReady={quoteRequestReady}
+                requestNumber={quoteRequestNumber}
                 requestLoading={quoteRequestLoading}
                 requestError={quoteRequestError}
                 onContactChange={updateQuoteContact}
@@ -779,6 +829,10 @@ function App() {
                 <CustomerAccountPage
                   account={customerAccount}
                   orders={customerOrders}
+                  quoteRequests={customerQuoteHistory}
+                  quoteRequestsStatus={customerQuoteHistoryStatus}
+                  quoteRequestsError={customerQuoteHistoryError}
+                  onRefreshQuoteRequests={() => setQuoteHistoryRefresh((current) => current + 1)}
                   onSave={updateCustomerAccount}
                   onSignOut={signOutCustomer}
                   syncStatus={customerSyncStatus}
