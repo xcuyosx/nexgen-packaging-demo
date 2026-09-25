@@ -1,129 +1,79 @@
-import { useMemo, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
-  BadgeCheck,
   Boxes,
-  CalendarClock,
   Check,
   ChevronRight,
   ClipboardList,
+  Download,
   Factory,
-  FileText,
   Leaf,
   Mail,
   MapPin,
   Menu,
-  Minus,
   Phone,
+  PackageOpen,
   Plus,
+  Pizza,
   Recycle,
   RotateCcw,
   Ruler,
   Search,
+  Settings2,
   ShieldCheck,
+  ShoppingBag,
   ShoppingCart,
   Sparkles,
+  Store,
   Truck,
+  Utensils,
   Upload,
+  UserRound,
   X,
 } from 'lucide-react'
+import {
+  paperProducts,
+  plasticProducts,
+  products as curatedProducts,
+  quoteQuantityOptions,
+} from './catalog'
+import type { Product, ProductDivision } from './catalog'
+import { industries } from './industries'
+import { fetchStorefrontProducts, storefrontFallbackProducts } from './storefrontCatalog'
+import { productMatchesSearch } from './productSearch'
+import { readCollectionFilters, updateCollectionFilter } from './collectionFilters'
+import { artworkFileDetails, artworkNeedsReattachment } from './artworkUpload'
+import { TradeShowCalendar } from './TradeShowCalendar'
+import { CustomerAccountPage, CustomerOrderDetailPage } from './CustomerAccountPage'
+import { CustomerLoginPage } from './CustomerLoginPage'
+import { CartPage } from './CartPage'
+import {
+  clearCustomerSession,
+  emptyCustomerAccount,
+  fetchCustomerAccountSync,
+  fetchCustomerQuoteHistory,
+  loadCustomerSession,
+  loadCustomerAccount,
+  loadCustomerOrders,
+  loginCustomerAccount,
+  logoutCustomerAccount,
+  refreshCustomerSession,
+  readCustomerPasswordRecoveryLink,
+  registerCustomerAccount,
+  requestCustomerPasswordReset,
+  saveCustomerAccount,
+  saveCustomerAccountSync,
+  saveCustomerOrders,
+  saveCustomerSession,
+  submitCustomerQuoteRequest,
+  updateCustomerPassword,
+} from './customerAccount'
+import type { CustomerAccount, CustomerOrder, CustomerOrderLine, CustomerQuoteHistoryEntry, CustomerSession } from './customerAccount'
+import { addConfiguredCartItem, buildQuoteRequestLine, changeCartLineCases, removeCartLine, replaceConfiguredCartLine } from './storefrontCart'
+import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
+import { loadCart, saveCart } from './cartPersistence'
 import './App.css'
-
-type Product = {
-  id: string
-  name: string
-  category: 'Paper' | 'Plastic' | 'Pizza' | 'Custom'
-  material: string
-  description: string
-  casePack: string
-  leadTime: string
-  image: string
-  badges: string[]
-  applications: string[]
-}
-
-type CartItem = {
-  productId: string
-  cases: number
-  customPrint: boolean
-}
-
-const products: Product[] = [
-  {
-    id: 'paper-cups',
-    name: 'EcoBio paper beverage cups',
-    category: 'Paper',
-    material: '100% recycled paper',
-    description: 'Single-wall and double-wall cup programs with sleeves, lids, and custom print options.',
-    casePack: '1,000 / case',
-    leadTime: 'Stock or custom',
-    image:
-      'https://static.wixstatic.com/media/067fd2_cd63d937ea0b4f5d970719418042c4a7~mv2.jpeg/v1/crop/x_1830,y_0,w_5340,h_6000/fill/w_890,h_1000,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/papercupwithpapersleeve.jpeg',
-    badges: ['Recyclable', 'Custom print', 'PFAS free'],
-    applications: ['Coffee', 'QSR', 'Foodservice'],
-  },
-  {
-    id: 'clear-cups',
-    name: 'Clear cold cups and lids',
-    category: 'Plastic',
-    material: 'Virgin, recycled, or biodegradable plastic',
-    description: 'High-clarity beverage cups for chains, stadiums, convenience, and prepared beverage programs.',
-    casePack: '600 / case',
-    leadTime: 'Fast repeat runs',
-    image:
-      'https://static.wixstatic.com/media/067fd2_dcba4a3a1e104ac3b9fb7399dc7eb054~mv2.jpg/v1/fill/w_890,h_514,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/plasticcupbeerserving.jpg',
-    badges: ['Recycled content', 'Logo ready', 'Food safe'],
-    applications: ['Beverage', 'Events', 'Retail'],
-  },
-  {
-    id: 'produce-trays',
-    name: 'Anti-fog produce and protein trays',
-    category: 'Plastic',
-    material: 'RPET and PET programs',
-    description: 'Two-piece and hinged containers that merchandise prepared foods, produce, and proteins.',
-    casePack: '300 / case',
-    leadTime: 'Program based',
-    image:
-      'https://static.wixstatic.com/media/067fd2_59fab9c03a7c41599a037342b9aebc94~mv2.jpeg/v1/crop/x_118,y_565,w_4769,h_2540/fill/w_1858,h_990,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/plastic%20cup%20with%20fruit.jpeg',
-    badges: ['Anti-fog', 'Retail ready', 'Recyclable'],
-    applications: ['Supermarket', 'C-store', 'Processor'],
-  },
-  {
-    id: 'pizza-boxes',
-    name: 'Pizza boxes and liners',
-    category: 'Pizza',
-    material: 'Recycled E-flute and paperboard',
-    description: 'Branded pizza packaging with liners, venting, grease resistance, and delivery-friendly sizing.',
-    casePack: '50 / bundle',
-    leadTime: 'Custom program',
-    image:
-      'https://static.wixstatic.com/media/067fd2_81c9663dd29449a29611123b88c3816b~mv2.jpeg/v1/fill/w_896,h_610,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/papercupscheers.jpeg',
-    badges: ['Custom size', 'Grease resistant', 'Recycled fiber'],
-    applications: ['Pizza', 'Delivery', 'Ghost kitchen'],
-  },
-  {
-    id: 'custom-program',
-    name: 'Custom printed packaging program',
-    category: 'Custom',
-    material: 'Paper, plastic, or mixed bill of goods',
-    description: 'Artwork, prototyping, forecasting, warehousing, and direct-to-distribution replenishment.',
-    casePack: 'MOQ by item',
-    leadTime: 'Program launch',
-    image:
-      'https://static.wixstatic.com/media/067fd2_95949ec8a878425ca9c1c55b49f201dc~mv2.jpeg/v1/crop/x_0,y_17,w_4000,h_4125/fill/w_894,h_922,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/plasticcup.jpeg',
-    badges: ['8-10 color print', 'Forecasting', 'Compliance'],
-    applications: ['Multi-unit', 'Private label', 'Franchise'],
-  },
-]
-
-const categoryOptions = ['All', 'Paper', 'Plastic', 'Pizza', 'Custom'] as const
-
-const reorderLists = [
-  { id: 'stadium', label: 'Stadium beverage kit', items: 4, volume: '188 cases/mo', status: 'Ready' },
-  { id: 'pizza', label: 'Pizza launch bundle', items: 3, volume: '72 bundles/mo', status: 'Artwork due' },
-  { id: 'market', label: 'Prepared foods tray set', items: 6, volume: '241 cases/mo', status: 'Scheduled' },
-]
 
 const heroImage =
   'https://static.wixstatic.com/media/067fd2_0ee5edd567cf45428f5ca53176428944~mv2.jpg/v1/fill/w_980,h_548,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/067fd2_0ee5edd567cf45428f5ca53176428944~mv2.jpg'
@@ -131,386 +81,634 @@ const heroImage =
 const nexgenLogo =
   'https://static.wixstatic.com/media/067fd2_442e8edbc68c491ea121fea22fc5f107~mv2.png/v1/fill/w_918,h_218,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/067fd2_442e8edbc68c491ea121fea22fc5f107~mv2.png'
 
-const boxStyles = ['Mailer box', 'Pizza box', 'Tuck top carton', 'Auto-lock bottom'] as const
-const boxMaterials = ['Kraft E-flute', 'White corrugate', 'Recycled paperboard', 'Premium SBS'] as const
-const boxPrints = ['No print', 'One-color logo', 'Full-color outside', 'Inside and outside print'] as const
-const logoPlacementOptions = [
-  { id: 'front', label: 'Front' },
-  { id: 'back', label: 'Back' },
-  { id: 'left', label: 'Left side' },
-  { id: 'right', label: 'Right side' },
-  { id: 'top', label: 'Top' },
-] as const
-
-type LogoSide = (typeof logoPlacementOptions)[number]['id']
-
-type LogoAdjustment = {
-  fit: 'contain' | 'cover'
+type ArtworkAdjustment = {
   size: number
   x: number
   y: number
   rotate: number
 }
 
-type BoxSpec = {
-  length: number
-  width: number
-  height: number
-  style: (typeof boxStyles)[number]
-  material: (typeof boxMaterials)[number]
-  print: (typeof boxPrints)[number]
-  quantity: number
-}
-
-const materialColors: Record<(typeof boxMaterials)[number], string> = {
-  'Kraft E-flute': '#b78b5c',
-  'White corrugate': '#e9ece5',
-  'Recycled paperboard': '#9b8d70',
-  'Premium SBS': '#f8f6ef',
-}
-
-const defaultLogoAdjustment: LogoAdjustment = {
-  fit: 'contain',
-  size: 64,
+const defaultArtworkAdjustment: ArtworkAdjustment = {
+  size: 58,
   x: 0,
   y: 0,
   rotate: 0,
 }
 
+function RouteScrollManager() {
+  const { pathname, hash } = useLocation()
+  const navigationType = useNavigationType()
+  const previousPathname = useRef(pathname)
+
+  useEffect(() => {
+    const changedPage = pathname !== previousPathname.current
+    previousPathname.current = pathname
+    if (hash) {
+      requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView())
+      return
+    }
+
+    if (changedPage && navigationType !== 'POP') window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [hash, pathname, navigationType])
+
+  return null
+}
+
 function App() {
-  const [activeCategory, setActiveCategory] = useState<(typeof categoryOptions)[number]>('All')
-  const [query, setQuery] = useState('')
-  const [cart, setCart] = useState<CartItem[]>([
-    { productId: 'paper-cups', cases: 12, customPrint: true },
-    { productId: 'produce-trays', cases: 8, customPrint: false },
-  ])
-  const [selectedQuoteProduct, setSelectedQuoteProduct] = useState(products[0].id)
-  const [customLogoRequested, setCustomLogoRequested] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [activePanel, setActivePanel] = useState<'order' | 'artwork' | 'forecast'>('order')
-  const [submitted, setSubmitted] = useState(false)
-  const [boxRotation, setBoxRotation] = useState({ x: -18, y: -28 })
-  const [boxDragStart, setBoxDragStart] = useState<{
-    x: number
-    y: number
-    rotation: { x: number; y: number }
+  const { pathname, search } = useLocation()
+  const navigate = useNavigate()
+  const returningToCart = pathname === '/account' && new URLSearchParams(search).get('checkout') === '1'
+  const [passwordRecovery, setPasswordRecovery] = useState(readCustomerPasswordRecoveryLink)
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(() => passwordRecovery ? null : loadCustomerSession())
+  const customerSessionToken = customerSession?.token || ''
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(storefrontFallbackProducts)
+  const [cart, setCart] = useState<CartItem[]>(loadCart)
+  const [customerAccount, setCustomerAccount] = useState<CustomerAccount>(() => customerSession ? loadCustomerAccount() : emptyCustomerAccount)
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(() => customerSession ? loadCustomerOrders() : [])
+  const [customerQuoteHistoryResult, setCustomerQuoteHistoryResult] = useState<{
+    userId: string
+    refresh: number
+    requests: CustomerQuoteHistoryEntry[]
+    error: string
   } | null>(null)
-  const [logoPanelOpen, setLogoPanelOpen] = useState(false)
-  const [logoSides, setLogoSides] = useState<Record<LogoSide, boolean>>({
-    front: true,
-    back: false,
-    left: false,
-    right: false,
-    top: false,
-  })
-  const [logoUploads, setLogoUploads] = useState<Record<LogoSide, string | null>>({
-    front: null,
-    back: null,
-    left: null,
-    right: null,
-    top: null,
-  })
-  const [activeLogoSide, setActiveLogoSide] = useState<LogoSide>('front')
-  const [logoAdjustments, setLogoAdjustments] = useState<Record<LogoSide, LogoAdjustment>>({
-    front: defaultLogoAdjustment,
-    back: defaultLogoAdjustment,
-    left: defaultLogoAdjustment,
-    right: defaultLogoAdjustment,
-    top: defaultLogoAdjustment,
-  })
-  const [boxSpec, setBoxSpec] = useState<BoxSpec>({
-    length: 12,
-    width: 9,
-    height: 4,
-    style: boxStyles[0],
-    material: boxMaterials[0],
-    print: boxPrints[1],
-    quantity: 500,
+  const [quoteHistoryRefresh, setQuoteHistoryRefresh] = useState(0)
+  const quoteHistoryCurrent = customerQuoteHistoryResult !== null
+    && customerSession !== null
+    && customerQuoteHistoryResult.userId === customerSession.userId
+    && customerQuoteHistoryResult.refresh === quoteHistoryRefresh
+  const customerQuoteHistory = quoteHistoryCurrent ? customerQuoteHistoryResult.requests : []
+  const customerQuoteHistoryStatus = !customerSessionToken ? 'ready'
+    : !quoteHistoryCurrent ? 'loading' : customerQuoteHistoryResult.error ? 'error' : 'ready'
+  const customerQuoteHistoryError = quoteHistoryCurrent ? customerQuoteHistoryResult.error : ''
+  const [customerSyncStatus, setCustomerSyncStatus] = useState<'loading' | 'connected' | 'saving' | 'saved' | 'offline'>(customerSession ? 'loading' : 'offline')
+  const [customerLastSyncedAt, setCustomerLastSyncedAt] = useState('')
+  const [customerLoginLoading, setCustomerLoginLoading] = useState(false)
+  const [customerLoginError, setCustomerLoginError] = useState(passwordRecovery?.error || '')
+  const [customerLoginMessage, setCustomerLoginMessage] = useState('')
+  const customerSyncRevisionRef = useRef(1)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [headerBrandVisible, setHeaderBrandVisible] = useState(pathname !== '/')
+  const [quoteRequestReady, setQuoteRequestReady] = useState(false)
+  const [quoteRequestNumber, setQuoteRequestNumber] = useState('')
+  const [quoteRequestLoading, setQuoteRequestLoading] = useState(false)
+  const [quoteRequestError, setQuoteRequestError] = useState('')
+  const [buyer, setBuyer] = useState<QuoteContact>({
+    name: '',
+    company: '',
+    email: '',
+    purchaseOrder: '',
+    billingProfileId: '',
+    receivingLocationId: '',
+    notes: '',
   })
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchesCategory = activeCategory === 'All' || product.category === activeCategory
-      const text = `${product.name} ${product.material} ${product.description} ${product.badges.join(' ')}`
-      return matchesCategory && text.toLowerCase().includes(query.toLowerCase())
-    })
-  }, [activeCategory, query])
+  useEffect(() => saveCart(cart), [cart])
+
+  useLayoutEffect(() => {
+    if (!passwordRecovery) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('auth')
+    url.hash = ''
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
+    clearCustomerSession()
+  }, [passwordRecovery])
+  const [contactRequest, setContactRequest] = useState({ company: '', need: 'standard', message: '' })
+  const [contactEmailOpened, setContactEmailOpened] = useState(false)
+
+  useEffect(() => {
+    const updateHeaderBrand = () => {
+      const visible = pathname !== '/' || window.scrollY > 72
+      setHeaderBrandVisible((current) => current === visible ? current : visible)
+    }
+
+    updateHeaderBrand()
+    window.addEventListener('scroll', updateHeaderBrand, { passive: true })
+    return () => window.removeEventListener('scroll', updateHeaderBrand)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchStorefrontProducts(controller.signal)
+      .then((remoteProducts) => {
+        if (remoteProducts.length) setCatalogProducts(remoteProducts)
+      })
+      .catch(() => {
+        // The curated/local catalog remains usable while the shared backend is unavailable.
+      })
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    if (!customerSession || customerSession.provider !== 'supabase' || !customerSession.refreshToken) return
+    const refreshIn = Math.max(0, Date.parse(customerSession.expiresAt) - Date.now() - 60_000)
+    const timer = window.setTimeout(() => {
+      refreshCustomerSession(customerSession)
+        .then((nextSession) => {
+          saveCustomerSession(nextSession)
+          setCustomerSession(nextSession)
+        })
+        .catch(() => {
+          clearCustomerSession()
+          setCustomerSession(null)
+          setCustomerAccount(emptyCustomerAccount)
+          setCustomerOrders([])
+          setCustomerLoginError('Your customer session has expired. Please sign in again.')
+        })
+    }, refreshIn)
+    return () => window.clearTimeout(timer)
+  }, [customerSession])
+
+  useEffect(() => {
+    if (!customerSessionToken) return
+    if (
+      customerSession?.provider === 'supabase' &&
+      customerSession.refreshToken &&
+      Date.parse(customerSession.expiresAt) <= Date.now() + 30_000
+    ) return
+    const controller = new AbortController()
+    fetchCustomerAccountSync(customerSessionToken, controller.signal)
+      .then((record) => {
+        customerSyncRevisionRef.current = record.revision
+        setCustomerAccount(record.account)
+        setCustomerOrders(record.orders)
+        saveCustomerAccount(record.account)
+        saveCustomerOrders(record.orders)
+        setCustomerLastSyncedAt(record.updatedAt)
+        setCustomerSyncStatus('connected')
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setCustomerSyncStatus('offline')
+        if (error instanceof Error && error.message.includes('session has expired')) {
+          clearCustomerSession()
+          setCustomerSession(null)
+          setCustomerAccount(emptyCustomerAccount)
+          setCustomerOrders([])
+          setCustomerLoginError(error.message)
+        }
+      })
+    return () => controller.abort()
+  }, [customerSession?.expiresAt, customerSession?.provider, customerSession?.refreshToken, customerSessionToken])
+
+  useEffect(() => {
+    if (!customerSessionToken) return
+    if (
+      customerSession?.provider === 'supabase' &&
+      customerSession.refreshToken &&
+      Date.parse(customerSession.expiresAt) <= Date.now() + 30_000
+    ) return
+    const controller = new AbortController()
+    fetchCustomerQuoteHistory(customerSessionToken, controller.signal)
+      .then((requests) => {
+        if (controller.signal.aborted) return
+        setCustomerQuoteHistoryResult({ userId: customerSession?.userId || '', refresh: quoteHistoryRefresh, requests, error: '' })
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setCustomerQuoteHistoryResult({
+          userId: customerSession?.userId || '',
+          refresh: quoteHistoryRefresh,
+          requests: [],
+          error: error instanceof Error ? error.message : 'Unable to load your quote requests.',
+        })
+      })
+    return () => controller.abort()
+  }, [customerSession?.expiresAt, customerSession?.provider, customerSession?.refreshToken, customerSession?.userId, customerSessionToken, quoteHistoryRefresh])
+
+  const signInCustomer = async (email: string, password: string) => {
+    setCustomerLoginLoading(true)
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    try {
+      const result = await loginCustomerAccount(email, password)
+      const session: CustomerSession = {
+        token: result.token,
+        refreshToken: result.refreshToken,
+        userId: result.userId,
+        accountId: result.accountId,
+        expiresAt: result.expiresAt,
+        provider: result.provider,
+      }
+      saveCustomerSession(session)
+      customerSyncRevisionRef.current = result.record.revision
+      setCustomerSession(session)
+      setCustomerAccount(result.record.account)
+      setCustomerOrders(result.record.orders)
+      saveCustomerAccount(result.record.account)
+      saveCustomerOrders(result.record.orders)
+      setCustomerLastSyncedAt(result.record.updatedAt)
+      setCustomerSyncStatus('connected')
+      setBuyer((current) => ({
+        ...current,
+        name: current.name || result.record.account.contactName,
+        company: current.company || result.record.account.companyName,
+        email: current.email || result.record.account.email,
+        billingProfileId: current.billingProfileId || result.record.account.billingProfiles[0]?.id || '',
+        receivingLocationId: current.receivingLocationId || result.record.account.receivingLocations[0]?.id || '',
+      }))
+      if (returningToCart) navigate('/cart', { replace: true })
+    } catch (error) {
+      setCustomerLoginError(error instanceof Error ? error.message : 'Sign-in failed. Please try again.')
+    } finally {
+      setCustomerLoginLoading(false)
+    }
+  }
+
+  const registerCustomer = async (contactName: string, companyName: string, email: string, password: string) => {
+    setCustomerLoginLoading(true)
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    try {
+      const registration = await registerCustomerAccount(contactName, companyName, email, password)
+      if (!registration.login) {
+        if (registration.status === 'existing-account') {
+          setCustomerLoginError('This email already has a sign-in. Sign in or reset your password. A separate customer account needs a different email.')
+        } else {
+          setCustomerLoginMessage('If this is a new account, check your email for a confirmation link. Already have a sign-in? Sign in or reset your password.')
+        }
+        return
+      }
+      const result = registration.login
+      const session: CustomerSession = {
+        token: result.token,
+        refreshToken: result.refreshToken,
+        userId: result.userId,
+        accountId: result.accountId,
+        expiresAt: result.expiresAt,
+        provider: result.provider,
+      }
+      saveCustomerSession(session)
+      customerSyncRevisionRef.current = result.record.revision
+      setCustomerSession(session)
+      setCustomerAccount(result.record.account)
+      setCustomerOrders(result.record.orders)
+      saveCustomerAccount(result.record.account)
+      saveCustomerOrders(result.record.orders)
+      setCustomerLastSyncedAt(result.record.updatedAt)
+      setCustomerSyncStatus('connected')
+      setBuyer((current) => ({
+        ...current,
+        name: result.record.account.contactName,
+        company: result.record.account.companyName,
+        email: result.record.account.email,
+      }))
+      if (returningToCart) navigate('/cart', { replace: true })
+    } catch (error) {
+      setCustomerLoginError(error instanceof Error ? error.message : 'Account creation failed. Please try again.')
+    } finally {
+      setCustomerLoginLoading(false)
+    }
+  }
+
+  const requestPasswordReset = async (email: string) => {
+    setCustomerLoginLoading(true)
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    try {
+      await requestCustomerPasswordReset(email)
+      setCustomerLoginMessage('If this email has a sign-in, check for a reset link. If none arrives, contact NexGen support.')
+    } catch (error) {
+      setCustomerLoginError(error instanceof Error ? error.message : 'Password reset request failed. Please try again.')
+    } finally {
+      setCustomerLoginLoading(false)
+    }
+  }
+
+  const changePassword = async (password: string) => {
+    const token = passwordRecovery?.token
+    if (!token) return false
+    setCustomerLoginLoading(true)
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    try {
+      await updateCustomerPassword(token, password)
+      setPasswordRecovery(null)
+      setCustomerLoginMessage('Password updated. Sign in with your new password.')
+      return true
+    } catch (error) {
+      setCustomerLoginError(error instanceof Error ? error.message : 'Unable to update your password. Request a new reset link.')
+      return false
+    } finally {
+      setCustomerLoginLoading(false)
+    }
+  }
+
+  const clearCustomerLoginFeedback = () => {
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    setPasswordRecovery(null)
+  }
+
+  const signOutCustomer = async () => {
+    const token = customerSession?.token || ''
+    clearCustomerSession()
+    setCustomerSession(null)
+    setCustomerAccount(emptyCustomerAccount)
+    setCustomerOrders([])
+    setCustomerQuoteHistoryResult(null)
+    setQuoteRequestNumber('')
+    setQuoteRequestReady(false)
+    setCart([])
+    setCustomerLastSyncedAt('')
+    setCustomerSyncStatus('offline')
+    setCustomerLoginError('')
+    setCustomerLoginMessage('')
+    try {
+      await logoutCustomerAccount(token)
+    } catch {
+      // Local session state is cleared even if the demo service is temporarily unavailable.
+    }
+  }
+
+  const allProducts = useMemo(() => {
+    const catalogIds = new Set(catalogProducts.map((product) => product.id))
+    return [...catalogProducts, ...curatedProducts.filter((product) => !catalogIds.has(product.id))]
+  }, [catalogProducts])
+  const productMap = useMemo(() => new Map(allProducts.map((product) => [product.id, product])), [allProducts])
 
   const cartDetails = useMemo(() => {
     return cart
       .map((item) => ({
         ...item,
-        product: products.find((product) => product.id === item.productId),
+        product: productMap.get(item.productId),
       }))
       .filter((item): item is CartItem & { product: Product } => Boolean(item.product))
-  }, [cart])
+  }, [cart, productMap])
 
   const totalCases = cartDetails.reduce((total, item) => total + item.cases, 0)
-  const customItems = cartDetails.filter((item) => item.customPrint).length
 
-  const boxPreviewStyle = useMemo(
-    () =>
-      ({
-        '--box-width': `${Math.max(160, Math.min(320, boxSpec.length * 16))}px`,
-        '--box-depth': `${Math.max(92, Math.min(190, boxSpec.width * 15))}px`,
-        '--box-slant': `${Math.max(54, Math.min(112, boxSpec.width * 8))}px`,
-        '--box-height': `${Math.max(58, Math.min(160, boxSpec.height * 17))}px`,
-        '--box-color': materialColors[boxSpec.material],
-        '--box-rotation-x': `${boxRotation.x}deg`,
-        '--box-rotation-y': `${boxRotation.y}deg`,
-      }) as CSSProperties,
-    [boxSpec, boxRotation],
-  )
-
-  const estimatedCases = Math.max(1, Math.ceil(boxSpec.quantity / 100))
-  const selectedLogoSides = logoPlacementOptions.filter((side) => logoSides[side.id])
-  const visibleLogoSide = logoSides[activeLogoSide] ? activeLogoSide : selectedLogoSides[0]?.id
-
-  const updateBoxNumber = (field: 'length' | 'width' | 'height' | 'quantity', value: number) => {
-    const limits = {
-      length: [4, 30],
-      width: [3, 24],
-      height: [1, 18],
-      quantity: [50, 10000],
-    } as const
-
-    const [min, max] = limits[field]
-    setBoxSpec((current) => ({
-      ...current,
-      [field]: Math.max(min, Math.min(max, Number.isFinite(value) ? value : min)),
-    }))
+  const addToCart = (productId: string, cases: number, size?: string, configuration?: CartConfiguration, editLineId?: string) => {
+    setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
+    setQuoteRequestError('')
+    const newLineId = crypto.randomUUID()
+    setCart((current) => editLineId
+      ? replaceConfiguredCartLine(current, editLineId, productId, cases, size, configuration)
+      : addConfiguredCartItem(current, productId, cases, size, configuration, newLineId))
   }
 
-  const updateCart = (productId: string, delta: number) => {
-    setCart((current) => {
-      const existing = current.find((item) => item.productId === productId)
-      if (!existing && delta > 0) {
-        return [...current, { productId, cases: 1, customPrint: false }]
-      }
-
-      return current
-        .map((item) =>
-          item.productId === productId ? { ...item, cases: Math.max(0, item.cases + delta) } : item,
-        )
-        .filter((item) => item.cases > 0)
-    })
+  const changeCartQuantity = (lineId: string, delta: number) => {
+    setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
+    setQuoteRequestError('')
+    setCart((current) => changeCartLineCases(current, lineId, delta))
   }
 
-  const toggleLogoSide = (side: LogoSide) => {
-    setLogoSides((current) => ({ ...current, [side]: !current[side] }))
-    if (!logoSides[side] && boxSpec.print === 'No print') {
-      setBoxSpec((current) => ({ ...current, print: 'One-color logo' }))
+  const removeCartItem = (lineId: string) => {
+    setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
+    setQuoteRequestError('')
+    setCart((current) => removeCartLine(current, lineId))
+  }
+
+  const updateQuoteContact = (field: keyof QuoteContact, value: string) => {
+    setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
+    setQuoteRequestError('')
+    setBuyer((current) => ({ ...current, [field]: value }))
+  }
+
+  const syncCustomerRecord = async (nextAccount: CustomerAccount, nextOrders: CustomerOrder[]) => {
+    if (!customerSession) {
+      setCustomerSyncStatus('offline')
+      throw new Error('Your customer session has expired. Please sign in again.')
+    }
+    setCustomerSyncStatus('saving')
+    try {
+      const record = await saveCustomerAccountSync(nextAccount, nextOrders, customerSyncRevisionRef.current, customerSession.token)
+      customerSyncRevisionRef.current = record.revision
+      setCustomerAccount(record.account)
+      setCustomerOrders(record.orders)
+      saveCustomerAccount(record.account)
+      saveCustomerOrders(record.orders)
+      setCustomerLastSyncedAt(record.updatedAt)
+      setCustomerSyncStatus('saved')
+      window.setTimeout(() => setCustomerSyncStatus((status) => status === 'saved' ? 'connected' : status), 1800)
+    } catch (error) {
+      setCustomerSyncStatus('offline')
+      throw error
     }
   }
 
-  const handleLogoUpload = (side: LogoSide, file: File | undefined) => {
-    if (!file) return
-
-    const imageUrl = URL.createObjectURL(file)
-    setLogoUploads((current) => {
-      if (current[side]) {
-        URL.revokeObjectURL(current[side])
-      }
-      return { ...current, [side]: imageUrl }
-    })
-    setActiveLogoSide(side)
+  const updateCustomerAccount = async (nextAccount: CustomerAccount) => {
+    setCustomerAccount(nextAccount)
+    saveCustomerAccount(nextAccount)
+    await syncCustomerRecord(nextAccount, customerOrders)
   }
 
-  const updateLogoAdjustment = <Key extends keyof LogoAdjustment>(
-    side: LogoSide,
-    key: Key,
-    value: LogoAdjustment[Key],
-  ) => {
-    setLogoAdjustments((current) => ({
-      ...current,
-      [side]: {
-        ...current[side],
-        [key]: value,
-      },
-    }))
+  const reorderFromHistory = (items: CustomerOrderLine[]) => {
+    setQuoteRequestReady(false)
+    setQuoteRequestNumber('')
+    setQuoteRequestError('')
+    const newLineIds = items.map(() => crypto.randomUUID())
+    setCart((current) => items.reduce((next, item, index) => {
+      const product = productMap.get(item.productId)
+      if (!product) return next
+      const component = product.id === 'plastic-entree-containers'
+        ? (item.productName.includes(' Base') ? 'Base' : item.productName.includes(' Lid') ? 'Lid' : undefined)
+        : undefined
+      const entreeSpec = component && product.specDownloadsBySize?.[item.size]?.find((spec) => spec.component === component)
+      return addConfiguredCartItem(next, item.productId, item.cases, item.size, {
+        component,
+        itemNumber: entreeSpec?.itemNumber || (component ? item.sku : undefined),
+        productName: entreeSpec?.productName || (component ? item.productName : undefined),
+        material: entreeSpec?.material,
+        printColors: item.customPrint ? 1 : 0,
+      }, newLineIds[index])
+    }, current))
   }
 
-  const renderBoxLogo = (side: LogoSide) => {
-    if (!logoSides[side]) return null
-    if (logoUploads[side]) {
-      const adjustment = logoAdjustments[side]
-      return (
-        <img
-          className="box-logo-image"
-          src={logoUploads[side]}
-          alt={`${side} logo preview`}
-          style={{
-            width: `${adjustment.size}%`,
-            height: `${adjustment.size}%`,
-            objectFit: adjustment.fit,
-            transform: `translate(${adjustment.x}%, ${adjustment.y}%) rotate(${adjustment.rotate}deg)`,
-          }}
-        />
-      )
+  const sendQuoteRequest = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!cartDetails.length) return
+    if (quoteRequestReady) return
+
+    setQuoteRequestError('')
+    setQuoteRequestReady(false)
+    if (!customerSession) {
+      setQuoteRequestError('Sign in or create a customer account before submitting this quote request.')
+      return
+    }
+    if (cartDetails.some((item) => item.product.id === 'plastic-entree-containers' && (!item.component || !item.itemNumber))) {
+      setQuoteRequestError('Choose a specific base or lid for each entrée item. Remove the unconfigured line and add the exact component from its product page.')
+      return
+    }
+    if (cartDetails.some((item) => artworkNeedsReattachment(item.artworkName, item.artworkFile))) {
+      setQuoteRequestError('Reattach the selected artwork files before submitting your quote request.')
+      return
     }
 
-    return <span>YOUR LOGO</span>
+    const billingProfile = customerAccount.billingProfiles.find((profile) => profile.id === buyer.billingProfileId)
+    const receivingLocation = customerAccount.receivingLocations.find((location) => location.id === buyer.receivingLocationId)
+    setQuoteRequestLoading(true)
+    try {
+      const result = await submitCustomerQuoteRequest(customerSession.token, {
+        contact: {
+          name: buyer.name,
+          company: buyer.company,
+          email: buyer.email,
+        },
+        billing: billingProfile ? { ...billingProfile } : {},
+        shipping: receivingLocation ? { ...receivingLocation } : {},
+        purchaseOrder: buyer.purchaseOrder,
+        notes: buyer.notes,
+        lines: cartDetails.map(buildQuoteRequestLine),
+        artworkFiles: cartDetails.flatMap((item, lineIndex) => item.artworkFile ? [{ lineIndex, file: item.artworkFile }] : []),
+      })
+      setQuoteRequestNumber(result.requestNumber)
+      setQuoteRequestReady(true)
+      setCart([])
+      setQuoteHistoryRefresh((current) => current + 1)
+    } catch (error) {
+      setQuoteRequestError(error instanceof Error ? error.message : 'Unable to submit this quote request.')
+    } finally {
+      setQuoteRequestLoading(false)
+    }
   }
 
-  const togglePrint = (productId: string) => {
-    setCart((current) => {
-      const existing = current.find((item) => item.productId === productId)
-      if (!existing) {
-        return [...current, { productId, cases: 1, customPrint: true }]
-      }
+  const sendContactRequest = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const needLabels: Record<string, string> = {
+      standard: 'Standard product order',
+      sample: 'Product sample request',
+      custom: 'Custom printed packaging',
+      reorder: 'Reorder or account support',
+      sustainability: 'Sustainable material program',
+    }
+    const body = [
+      `Company: ${contactRequest.company}`,
+      `Need: ${needLabels[contactRequest.need] || contactRequest.need}`,
+      '',
+      contactRequest.message,
+    ].join('\n')
 
-      return current.map((item) =>
-        item.productId === productId ? { ...item, customPrint: !item.customPrint } : item,
-      )
-    })
+    window.open(`mailto:orders@nexgenpac.com?subject=${encodeURIComponent(`Packaging inquiry — ${contactRequest.company}`)}&body=${encodeURIComponent(body)}`, '_self')
+    setContactEmailOpened(true)
   }
 
   return (
     <div className="site-shell">
+      <RouteScrollManager />
       <header className="site-header">
-        <button className="mobile-menu" type="button" onClick={() => setMenuOpen((open) => !open)}>
+        <Link className={`header-brand${headerBrandVisible ? ' visible' : ''}`} to="/" aria-label="Nexgen Packaging Group home">
+          <img src={nexgenLogo} alt="" />
+        </Link>
+        <button
+          className="mobile-menu"
+          type="button"
+          aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        <nav className={menuOpen ? 'open' : ''} aria-label="Primary navigation">
-          <a href="#box-builder">Build a box</a>
-          <a href="#products">Products</a>
-          <a href="#portal">Customer portal</a>
-          <a href="#capabilities">Capabilities</a>
-          <a href="#contact">Contact</a>
+        <nav id="primary-navigation" className={menuOpen ? 'open' : ''} aria-label="Primary navigation">
+          <NavLink to="/custom" onClick={() => setMenuOpen(false)}>Custom</NavLink>
+          <NavLink to="/products" onClick={() => setMenuOpen(false)}>Products</NavLink>
+          <NavLink to="/industries" onClick={() => setMenuOpen(false)}>Industries</NavLink>
+          <NavLink to="/capabilities" onClick={() => setMenuOpen(false)}>Capabilities</NavLink>
+          <NavLink to="/contact" onClick={() => setMenuOpen(false)}>Contact</NavLink>
         </nav>
 
-        <a className="header-action" href="#quote" aria-label="Open quote cart">
-          <ShoppingCart size={17} />
-        </a>
+        <button
+          className={`mobile-menu-backdrop${menuOpen ? ' open' : ''}`}
+          type="button"
+          aria-label="Close navigation menu"
+          tabIndex={menuOpen ? 0 : -1}
+          onClick={() => setMenuOpen(false)}
+        />
+
+        <div className="header-controls">
+          <NavLink className="account-action" to="/account" aria-label={customerSession ? 'Open customer account' : 'Customer sign in'}>
+            <UserRound size={19} />
+          </NavLink>
+          <Link className="header-action" to="/cart" aria-label="Open quote cart">
+            <ShoppingCart size={17} />
+          </Link>
+        </div>
       </header>
 
       <main id="top">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
         <section className="hero-section">
           <div className="hero-media" aria-hidden="true">
-            <img src={heroImage} alt="" />
+            <picture>
+              <source media="(max-width: 560px)" srcSet="/hero/mobile-storefront-hero-v2.jpg" />
+              <img src={heroImage} alt="" />
+            </picture>
           </div>
 
           <div className="hero-copy">
-            <p className="eyebrow">Nexgen Packaging Group</p>
-            <div className="hero-chip-row" aria-label="Platform highlights">
-              <span>
-                <ShieldCheck size={15} />
-                SQF-ready
-              </span>
-              <span>
-                <Factory size={15} />
-                Domestic manufacturing
-              </span>
-            </div>
             <img className="hero-logo" src={nexgenLogo} alt="Nexgen Packaging Group" />
             <p>Packaging procurement, built for modern foodservice teams.</p>
             <div className="hero-actions">
-              <a className="primary-button" href="#box-builder">
-                Build a box <ArrowRight size={18} />
-              </a>
-              <a className="secondary-button" href="#capabilities">
-                See capabilities
-              </a>
+              <Link className="primary-button" to="/custom">
+                <Sparkles className="hero-action-icon" size={17} />
+                <span>Design a custom cup</span>
+                <ArrowRight className="hero-action-arrow" size={17} />
+              </Link>
+              <Link className="secondary-button" to="/products">
+                <PackageOpen className="hero-action-icon" size={17} />
+                <span>Browse products</span>
+                <ArrowRight className="hero-action-arrow" size={17} />
+              </Link>
+              <Link className="secondary-button" to="/capabilities">
+                <Settings2 className="hero-action-icon" size={17} />
+                <span>See capabilities</span>
+                <ArrowRight className="hero-action-arrow" size={17} />
+              </Link>
             </div>
           </div>
 
-          <aside className="hero-order" id="quote" aria-label="Order request summary">
+          <aside className="hero-order quote-start-card" aria-label="Start a quote request">
             <div className="panel-heading">
               <span className="icon-tile">
-                <ShoppingCart size={20} />
+                <ClipboardList size={20} />
               </span>
               <div>
-                <p className="eyebrow">Quote cart</p>
-                <h2>Build a packaging request</h2>
+                <p className="eyebrow">Quote builder</p>
+                <h2>Build the right packaging program.</h2>
               </div>
             </div>
 
-            <div className="order-stats">
-              <span>
-                <strong>{totalCases}</strong>
-                Cases
-              </span>
-              <span>
-                <strong>{customItems}</strong>
-                Custom items
-              </span>
-              <span>
-                <strong>48h</strong>
-                Target reply
-              </span>
-            </div>
-
-            <div className="cart-list">
-              {cartDetails.map((item) => (
-                <article key={item.productId}>
-                  <div>
-                    <strong>{item.product.name}</strong>
-                    <small>{item.customPrint ? 'Custom print requested' : item.product.material}</small>
-                  </div>
-                  <div className="quantity-control">
-                    <button type="button" onClick={() => updateCart(item.productId, -1)} aria-label="Remove case">
-                      <Minus size={15} />
-                    </button>
-                    <span>{item.cases}</span>
-                    <button type="button" onClick={() => updateCart(item.productId, 1)} aria-label="Add case">
-                      <Plus size={15} />
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <div className="quote-picker">
-              <label htmlFor="quote-product">Available options</label>
-              <select
-                id="quote-product"
-                value={selectedQuoteProduct}
-                onChange={(event) => setSelectedQuoteProduct(event.target.value)}
-              >
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
-              <button type="button" onClick={() => updateCart(selectedQuoteProduct, 1)}>
-                <Plus size={17} />
-                Add more
-              </button>
-            </div>
-
-            <div className="custom-logo-box">
-              <label className="checkbox-row">
-                <input
-                  checked={customLogoRequested}
-                  type="checkbox"
-                  onChange={(event) => setCustomLogoRequested(event.target.checked)}
-                />
-                <span>Custom logo</span>
-              </label>
-
-              {customLogoRequested && (
-                <label className="logo-upload">
-                  <Upload size={17} />
-                  <span>Upload logo or artwork file</span>
-                  <input type="file" accept=".ai,.eps,.pdf,.png,.jpg,.jpeg,.svg" />
-                </label>
-              )}
-            </div>
-
-            <button className="primary-button full-width" type="button" onClick={() => setSubmitted(true)}>
-              {submitted ? <Check size={18} /> : <Mail size={18} />}
-              {submitted ? 'Request drafted' : 'Start quote'}
-            </button>
-
-            <div className="quote-meta">
-              <span>
-                <BadgeCheckIcon />
-                Account pricing ready
-              </span>
-              <span>ERP sync next</span>
-            </div>
+            <p className="quote-start-copy">Choose products, configure quantities and printing, upload artwork, and send one complete request to the NexGen sales team.</p>
+            <ol className="quote-start-steps">
+              <li><span>1</span>Select products and sizes</li>
+              <li><span>2</span>Add printing and artwork</li>
+              <li><span>3</span>Request final pricing</li>
+            </ol>
+            {cartDetails.length > 0 ? (
+              <div className="quote-start-progress">
+                <span><strong>{cartDetails.length}</strong> product{cartDetails.length === 1 ? '' : 's'}</span>
+                <span><strong>{totalCases}</strong> case{totalCases === 1 ? '' : 's'}</span>
+              </div>
+            ) : null}
+            <Link className="primary-button full-width" to={cartDetails.length > 0 ? '/cart' : '/products'}>
+              {cartDetails.length > 0 ? 'Review cart' : 'Browse products'} <ArrowRight size={18} />
+            </Link>
           </aside>
         </section>
 
@@ -528,550 +726,173 @@ function App() {
           ))}
         </section>
 
-        <section className="box-builder-section" id="box-builder">
+        <section className="home-paths" aria-labelledby="home-paths-title">
           <div className="section-intro">
-            <p className="eyebrow">Build a box</p>
-            <h2>Configure a custom package before you ever request a quote.</h2>
-            <p>
-              Customers can enter dimensions, select structural and print options, and preview the
-              package in real time before sending the request to your team.
-            </p>
+            <p className="eyebrow">Choose where to start</p>
+            <h2 id="home-paths-title">A clearer path to the packaging you need.</h2>
           </div>
-
-          <div className="box-builder-layout">
-            <div className="box-controls" aria-label="Custom box controls">
-              <div className="control-group">
-                <div className="control-heading">
-                  <Ruler size={18} />
-                  <h3>Dimensions</h3>
-                </div>
-                <div className="dimension-grid">
-                  {[
-                    ['length', 'Length'],
-                    ['width', 'Width'],
-                    ['height', 'Height'],
-                  ].map(([field, label]) => (
-                    <label key={field}>
-                      {label}
-                      <span>
-                        <input
-                          min={field === 'height' ? 1 : 3}
-                          max={field === 'length' ? 30 : field === 'width' ? 24 : 18}
-                          type="number"
-                          value={boxSpec[field as 'length' | 'width' | 'height']}
-                          onChange={(event) =>
-                            updateBoxNumber(field as 'length' | 'width' | 'height', Number(event.target.value))
-                          }
-                        />
-                        in
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="control-group">
-                <h3>Build options</h3>
-                <label>
-                  Box style
-                  <select
-                    value={boxSpec.style}
-                    onChange={(event) =>
-                      setBoxSpec((current) => ({
-                        ...current,
-                        style: event.target.value as (typeof boxStyles)[number],
-                      }))
-                    }
-                  >
-                    {boxStyles.map((style) => (
-                      <option key={style} value={style}>
-                        {style}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Material
-                  <select
-                    value={boxSpec.material}
-                    onChange={(event) =>
-                      setBoxSpec((current) => ({
-                        ...current,
-                        material: event.target.value as (typeof boxMaterials)[number],
-                      }))
-                    }
-                  >
-                    {boxMaterials.map((material) => (
-                      <option key={material} value={material}>
-                        {material}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Print
-                  <select
-                    value={boxSpec.print}
-                    onChange={(event) =>
-                      setBoxSpec((current) => ({
-                        ...current,
-                        print: event.target.value as (typeof boxPrints)[number],
-                      }))
-                    }
-                  >
-                    {boxPrints.map((print) => (
-                      <option key={print} value={print}>
-                        {print}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="logo-placement">
-                  <button
-                    className="logo-panel-toggle"
-                    type="button"
-                    onClick={() => setLogoPanelOpen((open) => !open)}
-                    aria-expanded={logoPanelOpen}
-                  >
-                    <span>
-                      Logo placement
-                      <small>
-                        {selectedLogoSides.length
-                          ? `${selectedLogoSides.length} side${selectedLogoSides.length === 1 ? '' : 's'} selected`
-                          : 'Optional artwork'}
-                      </small>
-                    </span>
-                    <ChevronRight size={18} />
-                  </button>
-
-                  {logoPanelOpen && (
-                    <div className="logo-panel-body">
-                      <p>Select every side that should include customer artwork.</p>
-                      <div className="logo-placement-grid">
-                        {logoPlacementOptions.map((side) => (
-                          <label
-                            className={logoSides[side.id] ? 'logo-side-option selected' : 'logo-side-option'}
-                            key={side.id}
-                          >
-                            <input
-                              checked={logoSides[side.id]}
-                              type="checkbox"
-                              onChange={() => toggleLogoSide(side.id)}
-                            />
-                            <span>{side.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {selectedLogoSides.length > 0 && (
-                        <div className="side-upload-list">
-                          {selectedLogoSides.map((side) => (
-                            <label className="side-logo-upload" key={side.id}>
-                              <Upload size={16} />
-                              <span>{logoUploads[side.id] ? `${side.label} logo loaded` : `${side.label} logo file`}</span>
-                              <input
-                                type="file"
-                                accept=".png,.jpg,.jpeg,.svg,.webp"
-                                onChange={(event) => handleLogoUpload(side.id, event.target.files?.[0])}
-                              />
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                      {visibleLogoSide && logoUploads[visibleLogoSide] && (
-                        <div className="logo-adjustment-panel">
-                          <label>
-                            Editing side
-                            <select
-                              value={visibleLogoSide}
-                              onChange={(event) => setActiveLogoSide(event.target.value as LogoSide)}
-                            >
-                              {selectedLogoSides.map((side) => (
-                                <option key={side.id} value={side.id}>
-                                  {side.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label>
-                            Fit
-                            <select
-                              value={logoAdjustments[visibleLogoSide].fit}
-                              onChange={(event) =>
-                                updateLogoAdjustment(
-                                  visibleLogoSide,
-                                  'fit',
-                                  event.target.value as LogoAdjustment['fit'],
-                                )
-                              }
-                            >
-                              <option value="contain">Fit inside</option>
-                              <option value="cover">Fill area</option>
-                            </select>
-                          </label>
-                          <label>
-                            Size
-                            <input
-                              max={120}
-                              min={24}
-                              type="range"
-                              value={logoAdjustments[visibleLogoSide].size}
-                              onChange={(event) =>
-                                updateLogoAdjustment(visibleLogoSide, 'size', Number(event.target.value))
-                              }
-                            />
-                          </label>
-                          <div className="logo-slider-grid">
-                            <label>
-                              X position
-                              <input
-                                max={60}
-                                min={-60}
-                                type="range"
-                                value={logoAdjustments[visibleLogoSide].x}
-                                onChange={(event) =>
-                                  updateLogoAdjustment(visibleLogoSide, 'x', Number(event.target.value))
-                                }
-                              />
-                            </label>
-                            <label>
-                              Y position
-                              <input
-                                max={60}
-                                min={-60}
-                                type="range"
-                                value={logoAdjustments[visibleLogoSide].y}
-                                onChange={(event) =>
-                                  updateLogoAdjustment(visibleLogoSide, 'y', Number(event.target.value))
-                                }
-                              />
-                            </label>
-                          </div>
-                          <label>
-                            Rotate
-                            <input
-                              max={180}
-                              min={-180}
-                              type="range"
-                              value={logoAdjustments[visibleLogoSide].rotate}
-                              onChange={(event) =>
-                                updateLogoAdjustment(visibleLogoSide, 'rotate', Number(event.target.value))
-                              }
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setLogoAdjustments((current) => ({
-                                ...current,
-                                [visibleLogoSide]: defaultLogoAdjustment,
-                              }))
-                            }
-                          >
-                            Reset logo
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <label>
-                  Quantity
-                  <input
-                    min={50}
-                    max={10000}
-                    step={50}
-                    type="number"
-                    value={boxSpec.quantity}
-                    onChange={(event) => updateBoxNumber('quantity', Number(event.target.value))}
-                  />
-                </label>
-              </div>
-
-              <button
-                className="primary-button full-width"
-                type="button"
-                onClick={() => {
-                  setSelectedQuoteProduct('custom-program')
-                  updateCart('custom-program', estimatedCases)
-                  setCustomLogoRequested(boxSpec.print !== 'No print' || selectedLogoSides.length > 0)
-                }}
-              >
-                <Plus size={18} />
-                Add custom box to quote
-              </button>
-            </div>
-
-            <div className="box-preview-panel">
-              <div
-                className={boxDragStart ? 'box-preview-stage dragging' : 'box-preview-stage'}
-                onPointerDown={(event) => {
-                  event.currentTarget.setPointerCapture(event.pointerId)
-                  setBoxDragStart({ x: event.clientX, y: event.clientY, rotation: boxRotation })
-                }}
-                onPointerMove={(event) => {
-                  if (!boxDragStart) return
-                  const nextX = boxDragStart.rotation.x - (event.clientY - boxDragStart.y) * 0.55
-                  const nextY = boxDragStart.rotation.y + (event.clientX - boxDragStart.x) * 0.7
-                  setBoxRotation({
-                    x: Math.max(-72, Math.min(58, nextX)),
-                    y: nextY,
-                  })
-                }}
-                onPointerUp={(event) => {
-                  event.currentTarget.releasePointerCapture(event.pointerId)
-                  setBoxDragStart(null)
-                }}
-                onPointerCancel={() => setBoxDragStart(null)}
-                role="img"
-                aria-label="Drag to rotate the custom box preview"
-              >
-                <div className="box-model" style={boxPreviewStyle} aria-label="Live custom box preview">
-                  <div className="box-face box-face-front">
-                    {renderBoxLogo('front')}
-                  </div>
-                  <div className="box-face box-face-back">
-                    {renderBoxLogo('back')}
-                  </div>
-                  <div className="box-face box-face-top">
-                    {renderBoxLogo('top')}
-                  </div>
-                  <div className="box-face box-face-bottom" />
-                  <div className="box-face box-face-side box-face-right">
-                    {renderBoxLogo('right')}
-                  </div>
-                  <div className="box-face box-face-side box-face-left">
-                    {renderBoxLogo('left')}
-                  </div>
-                  <div className="box-lid box-lid-left" />
-                  <div className="box-lid box-lid-right" />
-                </div>
-                <div className="rotate-hint">
-                  <span>Drag to spin</span>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setBoxRotation({ x: -18, y: -28 })
-                    }}
-                    aria-label="Reset box rotation"
-                  >
-                    <RotateCcw size={14} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="box-spec-summary">
-                <span>
-                  <strong>{boxSpec.length}"</strong>
-                  Length
-                </span>
-                <span>
-                  <strong>{boxSpec.width}"</strong>
-                  Width
-                </span>
-                <span>
-                  <strong>{boxSpec.height}"</strong>
-                  Height
-                </span>
-                <span>
-                  <strong>{estimatedCases}</strong>
-                  Quote cases
-                </span>
-              </div>
-
-              <div className="box-preview-notes">
-                <p>
-                  {boxSpec.style} · {boxSpec.material} · {boxSpec.print}
-                </p>
-                <small>
-                  Preview is for quoting direction. Final dielines, flute, board grade, and print
-                  layout would be confirmed by Nexgen prepress.
-                </small>
-              </div>
-            </div>
+          <div className="home-path-grid">
+            <Link to="/products">
+              <Boxes size={24} />
+              <span>Browse the catalog</span>
+              <small>Explore organized product families, applications, and specifications.</small>
+              <ArrowRight size={18} />
+            </Link>
+            <Link to="/industries">
+              <Store size={24} />
+              <span>Shop by industry</span>
+              <small>Start with pizza, prepared foods, convenience, delivery, or processing.</small>
+              <ArrowRight size={18} />
+            </Link>
+            <Link to="/custom">
+              <Sparkles size={24} />
+              <span>Create a custom product</span>
+              <small>Choose a NexGen cup, add artwork, and prepare a custom-print request.</small>
+              <ArrowRight size={18} />
+            </Link>
+            <Link to="/contact">
+              <Mail size={24} />
+              <span>Start with the sales team</span>
+              <small>Send a custom requirement when the right product is not obvious.</small>
+              <ArrowRight size={18} />
+            </Link>
           </div>
         </section>
+        <TradeShowCalendar />
+              </>
+            }
+          />
 
-        <section className="section-grid" id="products">
-          <div className="section-intro">
-            <p className="eyebrow">Product discovery</p>
-            <h2>Turn the PDF catalog into a searchable order surface.</h2>
-            <p>
-              Customers should filter by material, application, custom print, sustainability target,
-              and recurring program. The line card becomes a working commerce experience.
-            </p>
-          </div>
-
-          <div className="catalog-tools">
-            <label className="search-box">
-              <Search size={18} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search cups, trays, pizza, PFAS..."
+          <Route
+            path="/custom"
+            element={
+              <CustomProductBuilderPage
+                products={allProducts}
+                onAdd={(productId, cases, size, configuration) =>
+                  addToCart(productId, cases, size, configuration)
+                }
               />
-            </label>
+            }
+          />
+          <Route path="/build-a-box" element={<Navigate replace to="/custom" />} />
 
-            <div className="category-tabs" aria-label="Product category filter">
-              {categoryOptions.map((category) => (
-                <button
-                  className={activeCategory === category ? 'active' : ''}
-                  key={category}
-                  type="button"
-                  onClick={() => setActiveCategory(category)}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Route path="/products" element={<CatalogHubPage />} />
+          <Route path="/products/paper" element={<ProductCollectionPage division="paper" products={paperProducts} />} />
+          <Route path="/products/plastic" element={<ProductCollectionPage division="plastic" products={plasticProducts} />} />
 
-          <div className="product-grid">
-            {filteredProducts.map((product) => {
-              const cartItem = cart.find((item) => item.productId === product.id)
-              return (
-                <article className="product-card" key={product.id}>
-                  <img src={product.image} alt={product.name} />
-                  <div className="product-card-body">
-                    <div className="product-meta">
-                      <span>{product.category}</span>
-                      <span>{product.casePack}</span>
-                    </div>
-                    <h3>{product.name}</h3>
-                    <p>{product.description}</p>
-                    <div className="badge-list">
-                      {product.badges.map((badge) => (
-                        <span key={badge}>{badge}</span>
-                      ))}
-                    </div>
-                    <div className="application-list">
-                      {product.applications.map((application) => (
-                        <span key={application}>{application}</span>
-                      ))}
-                    </div>
-                    <div className="product-actions">
-                      <button type="button" onClick={() => updateCart(product.id, 1)}>
-                        <Plus size={16} />
-                        {cartItem ? `${cartItem.cases} cases` : 'Add'}
-                      </button>
-                      <button
-                        className={cartItem?.customPrint ? 'selected' : ''}
-                        type="button"
-                        onClick={() => togglePrint(product.id)}
-                      >
-                        <FileText size={16} />
-                        Print
-                      </button>
-                    </div>
-                  </div>
-                </article>
+          <Route
+            path="/products/:productId"
+            element={
+              <ProductDetailPage
+                products={allProducts}
+                cart={cart}
+                onAdd={(productId, cases, size, configuration, editLineId) => addToCart(productId, cases, size, configuration, editLineId)}
+                onRequestSample={(itemNumber) => setContactRequest((current) => ({
+                  ...current,
+                  need: 'sample',
+                  message: current.message || `I would like to request a sample of Item ${itemNumber}.`,
+                }))}
+              />
+            }
+          />
+
+          <Route
+            path="/cart"
+            element={
+              <CartPage
+                items={cartDetails}
+                totalCases={totalCases}
+                account={customerAccount}
+                signedIn={Boolean(customerSession)}
+                contact={buyer}
+                requestReady={quoteRequestReady}
+                requestNumber={quoteRequestNumber}
+                requestLoading={quoteRequestLoading}
+                requestError={quoteRequestError}
+                onContactChange={updateQuoteContact}
+                onQuantityChange={changeCartQuantity}
+                onRemove={removeCartItem}
+                onSubmit={sendQuoteRequest}
+              />
+            }
+          />
+
+          <Route path="/industries" element={<IndustriesHubPage />} />
+          <Route path="/industries/:industryId" element={<IndustryDetailPage />} />
+
+          <Route
+            path="/account"
+            element={
+              customerSession && returningToCart ? <Navigate to="/cart" replace /> : customerSession ? (
+                <CustomerAccountPage
+                  account={customerAccount}
+                  orders={customerOrders}
+                  quoteRequests={customerQuoteHistory}
+                  quoteRequestsStatus={customerQuoteHistoryStatus}
+                  quoteRequestsError={customerQuoteHistoryError}
+                  onRefreshQuoteRequests={() => setQuoteHistoryRefresh((current) => current + 1)}
+                  onSave={updateCustomerAccount}
+                  onSignOut={signOutCustomer}
+                  syncStatus={customerSyncStatus}
+                  lastSyncedAt={customerLastSyncedAt}
+                />
+              ) : (
+                <CustomerLoginPage
+                  logoUrl={nexgenLogo}
+                  loading={customerLoginLoading}
+                  error={customerLoginError}
+                  message={customerLoginMessage}
+                  recoveryToken={passwordRecovery?.token || ''}
+                  recoveryError={passwordRecovery?.error || ''}
+                  onLogin={signInCustomer}
+                  onRegister={registerCustomer}
+                  onResetRequest={requestPasswordReset}
+                  onPasswordUpdate={changePassword}
+                  onClearFeedback={clearCustomerLoginFeedback}
+                />
               )
-            })}
-          </div>
-        </section>
+            }
+          />
+          <Route
+            path="/account/orders/:orderId"
+            element={
+              customerSession ? (
+                <CustomerOrderDetailPage
+                  account={customerAccount}
+                  orders={customerOrders}
+                  onReorder={reorderFromHistory}
+                />
+              ) : (
+                <CustomerLoginPage
+                  logoUrl={nexgenLogo}
+                  loading={customerLoginLoading}
+                  error={customerLoginError}
+                  message={customerLoginMessage}
+                  recoveryToken={passwordRecovery?.token || ''}
+                  recoveryError={passwordRecovery?.error || ''}
+                  onLogin={signInCustomer}
+                  onRegister={registerCustomer}
+                  onResetRequest={requestPasswordReset}
+                  onPasswordUpdate={changePassword}
+                  onClearFeedback={clearCustomerLoginFeedback}
+                />
+              )
+            }
+          />
+          <Route path="/portal" element={<Navigate to="/account" replace />} />
 
-        <section className="portal-section" id="portal">
+          <Route
+            path="/capabilities"
+            element={<section className="capabilities-section page-section" id="capabilities">
           <div className="section-intro">
-            <p className="eyebrow">Customer portal</p>
-            <h2>Give buyers the controls they expect from a strategic supplier.</h2>
-          </div>
-
-          <div className="portal-layout">
-            <div className="portal-tabs" aria-label="Portal views">
-              {[
-                ['order', 'Order center', <ClipboardList size={18} />],
-                ['artwork', 'Artwork approval', <Upload size={18} />],
-                ['forecast', 'Forecasting', <CalendarClock size={18} />],
-              ].map(([id, label, icon]) => (
-                <button
-                  className={activePanel === id ? 'active' : ''}
-                  key={id as string}
-                  type="button"
-                  onClick={() => setActivePanel(id as 'order' | 'artwork' | 'forecast')}
-                >
-                  {icon}
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="portal-panel">
-              {activePanel === 'order' && (
-                <>
-                  <div className="panel-heading">
-                    <span className="icon-tile blue">
-                      <Truck size={20} />
-                    </span>
-                    <div>
-                      <p className="eyebrow">Reorder lists</p>
-                      <h3>Approved programs stay one click away.</h3>
-                    </div>
-                  </div>
-                  <div className="reorder-list">
-                    {reorderLists.map((list) => (
-                      <article key={list.id}>
-                        <div>
-                          <strong>{list.label}</strong>
-                          <small>
-                            {list.items} items · {list.volume}
-                          </small>
-                        </div>
-                        <span>{list.status}</span>
-                      </article>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {activePanel === 'artwork' && (
-                <div className="artwork-panel">
-                  <div className="upload-box">
-                    <Upload size={26} />
-                    <strong>Upload dielines, logos, and color specs</strong>
-                    <span>PDF, AI, EPS, PNG, and linked brand guidelines</span>
-                  </div>
-                  <div className="approval-steps">
-                    {['Prepress review', 'Digital proof', 'Production approval'].map((step, index) => (
-                      <span key={step}>
-                        <Check size={15} />
-                        {index + 1}. {step}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activePanel === 'forecast' && (
-                <div className="forecast-panel">
-                  <div className="forecast-chart" aria-label="Forecast by month">
-                    {[64, 78, 72, 86, 92, 81, 97, 108].map((height, index) => (
-                      <span key={index} style={{ height: `${height}%` }} />
-                    ))}
-                  </div>
-                  <div>
-                    <p className="eyebrow">Inventory planning</p>
-                    <h3>Min/max programs can be visible to the customer.</h3>
-                    <p>
-                      Forecasted consumption, next production window, safety stock, and freight
-                      consolidation can live inside the portal instead of spreadsheets.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="capabilities-section" id="capabilities">
-          <div className="section-intro">
-            <p className="eyebrow">What should stand out</p>
-            <h2>The rebuilt site should sell the operating system behind the packaging.</h2>
+            <p className="eyebrow">NexGen capabilities</p>
+            <h2>Manufacturing, customization, and supply support in one packaging partner.</h2>
           </div>
 
           <div className="capability-grid">
             {[
               [Factory, 'Domestic manufacturing', 'Paper converting, plastic extrusion, thermoforming, printing, and distribution under one supply strategy.'],
-              [Sparkles, 'Custom brand packaging', 'Prototype services, flexographic printing, dry-offset plastic printing, dielines, and short-to-medium runs.'],
+              [Sparkles, 'Custom brand packaging', 'Structural development, sampling, flexographic printing, dry-offset plastic printing, dielines, and short-to-medium runs.'],
               [Leaf, 'Eco-advanced materials', 'Recycled paper, recycled plastic, compostable, biodegradable, recyclable, PFAS-free, and food-contact safe options.'],
               [Boxes, 'Mixed truckload programs', 'Paper and plastic items consolidated into smarter replenishment programs for multi-unit operators.'],
               [ShieldCheck, 'Compliance tracking', 'Spec approvals, food-grade certifications, responsible sourcing documents, and branded item control.'],
@@ -1086,43 +907,64 @@ function App() {
               </article>
             ))}
           </div>
-        </section>
+        </section>}
+          />
 
-        <section className="contact-section" id="contact">
+          <Route
+            path="/contact"
+            element={<section className="contact-section page-section" id="contact">
           <div>
-            <p className="eyebrow">Launch path</p>
-            <h2>Start with ordering, then connect the portal to ERP and sales ops.</h2>
+            <p className="eyebrow">Contact NexGen</p>
+            <h2>Tell us what you need. We’ll help complete the order.</h2>
             <p>
-              The public site can launch quickly with quote requests and reorder lists. Phase two
-              can authenticate customers, expose account pricing, sync item numbers, and push order
-              requests into your ERP or CRM.
+              Share the product, quantity, artwork, timing, and delivery requirements. Our team will
+              confirm specifications, pricing, availability, and next steps.
             </p>
           </div>
 
-          <form className="contact-card">
+          <form className="contact-card" onSubmit={sendContactRequest}>
             <label>
               Company
-              <input placeholder="Multi-unit operator, distributor, processor..." />
+              <input
+                required
+                autoComplete="organization"
+                placeholder="Company name"
+                value={contactRequest.company}
+                onChange={(event) => setContactRequest((current) => ({ ...current, company: event.target.value }))}
+              />
             </label>
             <label>
               Need
-              <select defaultValue="custom">
+              <select
+                value={contactRequest.need}
+                onChange={(event) => setContactRequest((current) => ({ ...current, need: event.target.value }))}
+              >
+                <option value="standard">Standard product order</option>
+                <option value="sample">Product sample request</option>
                 <option value="custom">Custom printed packaging</option>
-                <option value="reorder">Reorder portal</option>
+                <option value="reorder">Reorder or account support</option>
                 <option value="sustainability">Sustainable material program</option>
-                <option value="erp">ERP-connected ordering</option>
               </select>
             </label>
             <label>
               Message
-              <textarea placeholder="Tell the sales team about products, quantities, artwork, and timing." />
+              <textarea
+                required
+                placeholder="Products, quantities, artwork, timing, and delivery location"
+                value={contactRequest.message}
+                onChange={(event) => setContactRequest((current) => ({ ...current, message: event.target.value }))}
+              />
             </label>
-            <a className="primary-button full-width" href="mailto:orders@nexgenpac.com">
-              <Mail size={18} />
-              Send to orders@nexgenpac.com
-            </a>
+            <button className="primary-button full-width" type="submit">
+              {contactEmailOpened ? <Check size={18} /> : <Mail size={18} />}
+              {contactEmailOpened ? 'Email ready' : 'Email NexGen sales'}
+            </button>
           </form>
-        </section>
+        </section>}
+          />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       <footer>
@@ -1137,9 +979,9 @@ function App() {
             <MapPin size={15} /> Bridgeton, MO
           </span>
         </div>
-        <a href="#top">
-          Back to top <ChevronRight size={15} />
-        </a>
+        <Link to="/">
+          Home <ChevronRight size={15} />
+        </Link>
       </footer>
     </div>
   )
@@ -1147,6 +989,1178 @@ function App() {
 
 export default App
 
-function BadgeCheckIcon() {
-  return <BadgeCheck size={15} />
+type CustomProductBuilderProps = {
+  products: Product[]
+  onAdd: (productId: string, cases: number, size: string, configuration: CartConfiguration) => void
+}
+
+const defaultInkColors = ['#0a6a56', '#f58220', '#0b78a3', '#d33f32']
+
+function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps) {
+  const cupProducts = useMemo(
+    () => products.filter((product) => {
+      const name = product.name.toLowerCase()
+      const standaloneLid = name.includes('lid') && !name.includes('cups')
+      return name.includes('cup') && !standaloneLid && !name.includes('sleeve') && product.maxPrintColors !== 0
+    }),
+    [products],
+  )
+  const [selectedProductId, setSelectedProductId] = useState(cupProducts[0]?.id || '')
+  const selectedProduct = cupProducts.find((product) => product.id === selectedProductId) || cupProducts[0]
+  const productSizes = selectedProduct?.sizes.length ? selectedProduct.sizes : ['Size confirmed with quote']
+  const [selectedSize, setSelectedSize] = useState(productSizes[0] || '')
+  const [cases, setCases] = useState(100)
+  const [printColors, setPrintColors] = useState<PrintColorCount>(1)
+  const [inkColors, setInkColors] = useState(defaultInkColors)
+  const [artworkName, setArtworkName] = useState('')
+  const [artworkPreview, setArtworkPreview] = useState<string | null>(null)
+  const [artworkFile, setArtworkFile] = useState<File | undefined>()
+  const [artworkError, setArtworkError] = useState('')
+  const [artworkAdjustment, setArtworkAdjustment] = useState<ArtworkAdjustment>(defaultArtworkAdjustment)
+  const [dragStart, setDragStart] = useState<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null)
+  const [added, setAdded] = useState(false)
+
+  if (!selectedProduct) {
+    return (
+      <section className="box-builder-section page-section">
+        <div className="section-intro">
+          <p className="eyebrow">Custom</p>
+          <h2>Custom products are being prepared.</h2>
+          <p>Please contact the NexGen team to start a custom-print program.</p>
+        </div>
+      </section>
+    )
+  }
+
+  const maxPrintColors = Math.max(1, selectedProduct.maxPrintColors || 4)
+  const activePrintColors = Math.min(printColors, maxPrintColors) as PrintColorCount
+  const selectedCupIsPlastic = selectedProduct.division === 'plastic' ||
+    /plastic|polypropylene|\bpet\b|\bpp\b|\bpla\b/i.test(selectedProduct.material)
+  const updateArtwork = <Key extends keyof ArtworkAdjustment>(key: Key, value: ArtworkAdjustment[Key]) => {
+    setArtworkAdjustment((current) => ({ ...current, [key]: value }))
+    setAdded(false)
+  }
+
+  const selectProduct = (productId: string) => {
+    const product = cupProducts.find((item) => item.id === productId)
+    if (!product) return
+    setSelectedProductId(productId)
+    setSelectedSize(product.sizes[0] || 'Size confirmed with quote')
+    setPrintColors((current) => Math.min(current, Math.max(1, product.maxPrintColors || 4)) as PrintColorCount)
+    setAdded(false)
+  }
+
+  const uploadArtwork = (file: File | undefined) => {
+    if (!file) return
+    try {
+      const { extension } = artworkFileDetails(file)
+      if (!['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extension)) {
+        throw new Error('Choose a PNG, JPG, WebP, or SVG file for the cup preview.')
+      }
+    } catch (error) {
+      setArtworkError(error instanceof Error ? error.message : 'Choose a supported artwork file.')
+      return
+    }
+    setArtworkError('')
+    setArtworkFile(file)
+    setArtworkName(file.name)
+    const reader = new FileReader()
+    reader.onload = () => setArtworkPreview(typeof reader.result === 'string' ? reader.result : null)
+    reader.onerror = () => setArtworkError('This artwork could not be previewed. Try another file.')
+    reader.readAsDataURL(file)
+    setArtworkAdjustment(defaultArtworkAdjustment)
+    setAdded(false)
+  }
+
+  return (
+    <section className="box-builder-section custom-builder-section page-section" id="custom-builder">
+      <div className="section-intro custom-builder-intro">
+        <div>
+          <p className="eyebrow">Custom product studio</p>
+          <h2>Put your brand on a NexGen cup.</h2>
+          <p>
+            Start with a cup already in the NexGen catalog, upload your artwork, choose up to four
+            print colors, and arrange the logo for a custom quote.
+          </p>
+        </div>
+        <div className="custom-studio-assurances" aria-label="Custom program process">
+          <span><Check size={15} /> NexGen product base</span>
+          <span><Check size={15} /> Up to four print colors</span>
+          <span><Check size={15} /> Prepress review included</span>
+        </div>
+      </div>
+
+      <div className="box-builder-layout custom-builder-layout">
+        <div className="box-controls custom-builder-controls" aria-label="Custom cup controls">
+          <div className="custom-builder-step">
+            <div className="custom-builder-step-heading">
+              <span>1</span>
+              <div>
+                <h3>Choose a cup</h3>
+                <p>Select a current NexGen product as the starting point.</p>
+              </div>
+            </div>
+            <label>
+              Product
+              <select value={selectedProduct.id} onChange={(event) => selectProduct(event.target.value)}>
+                {cupProducts.map((product) => (
+                  <option key={product.id} value={product.id}>{product.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="custom-selected-product">
+              <img src={selectedProduct.image} alt="" />
+              <div>
+                <strong>{selectedProduct.name}</strong>
+                <span>{selectedProduct.material}</span>
+                <small>{selectedProduct.casePack}</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="custom-builder-step">
+            <div className="custom-builder-step-heading">
+              <span>2</span>
+              <div>
+                <h3>Choose size and quantity</h3>
+                <p>NexGen will confirm minimums and final case pack.</p>
+              </div>
+            </div>
+            <div className="custom-size-quantity-grid">
+              <label>
+                Size or format
+                <select value={selectedSize} onChange={(event) => { setSelectedSize(event.target.value); setAdded(false) }}>
+                  {productSizes.map((size) => <option key={size} value={size}>{size}</option>)}
+                </select>
+              </label>
+              <label>
+                Estimated cases
+                <input
+                  min={1}
+                  max={10000}
+                  type="number"
+                  value={cases}
+                  onChange={(event) => { setCases(Math.max(1, Number(event.target.value) || 1)); setAdded(false) }}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="custom-builder-step">
+            <div className="custom-builder-step-heading">
+              <span>3</span>
+              <div>
+                <h3>Add artwork</h3>
+                <p>PNG, JPG, SVG, or WebP files work for this placement preview.</p>
+              </div>
+            </div>
+            <label className="custom-artwork-upload">
+              <Upload size={18} />
+              <span>{artworkName || 'Upload a logo or graphic'}</span>
+              <small>{artworkName ? 'Choose a different file' : 'High-resolution or vector artwork is recommended'}</small>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.svg,.webp"
+                onChange={(event) => uploadArtwork(event.target.files?.[0])}
+              />
+            </label>
+            {artworkError ? <p className="cup-artwork-error" role="alert">{artworkError}</p> : null}
+
+            <div className="custom-artwork-controls">
+              <label>
+                Logo size
+                <input
+                  type="range"
+                  min={20}
+                  max={100}
+                  value={artworkAdjustment.size}
+                  onChange={(event) => updateArtwork('size', Number(event.target.value))}
+                />
+              </label>
+              <div className="logo-slider-grid">
+                <label>
+                  Left / right
+                  <input
+                    type="range"
+                    min={-50}
+                    max={50}
+                    value={artworkAdjustment.x}
+                    onChange={(event) => updateArtwork('x', Number(event.target.value))}
+                  />
+                </label>
+                <label>
+                  Up / down
+                  <input
+                    type="range"
+                    min={-50}
+                    max={50}
+                    value={artworkAdjustment.y}
+                    onChange={(event) => updateArtwork('y', Number(event.target.value))}
+                  />
+                </label>
+              </div>
+              <label>
+                Rotation
+                <input
+                  type="range"
+                  min={-45}
+                  max={45}
+                  value={artworkAdjustment.rotate}
+                  onChange={(event) => updateArtwork('rotate', Number(event.target.value))}
+                />
+              </label>
+              <button type="button" onClick={() => { setArtworkAdjustment(defaultArtworkAdjustment); setAdded(false) }}>
+                <RotateCcw size={15} /> Reset placement
+              </button>
+            </div>
+          </div>
+
+          <div className="custom-builder-step">
+            <div className="custom-builder-step-heading">
+              <span>4</span>
+              <div>
+                <h3>Choose print colors</h3>
+                <p>Select the number of spot colors, then set the requested ink colors.</p>
+              </div>
+            </div>
+            <div className="print-count-options" aria-label="Number of print colors">
+              {([1, 2, 3, 4] as PrintColorCount[]).filter((count) => count <= maxPrintColors).map((count) => (
+                <button
+                  className={activePrintColors === count ? 'selected' : ''}
+                  key={count}
+                  type="button"
+                  aria-pressed={activePrintColors === count}
+                  onClick={() => { setPrintColors(count); setAdded(false) }}
+                >
+                  {count} color{count === 1 ? '' : 's'}
+                </button>
+              ))}
+            </div>
+            <div className="custom-ink-grid">
+              {inkColors.slice(0, activePrintColors).map((color, index) => (
+                <label key={index}>
+                  Color {index + 1}
+                  <span className="custom-ink-picker">
+                    <input
+                      type="color"
+                      value={color}
+                      aria-label={`Choose print color ${index + 1}`}
+                      onChange={(event) => {
+                        setInkColors((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))
+                        setAdded(false)
+                      }}
+                    />
+                    {color.toUpperCase()}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <button
+            className="primary-button full-width"
+            type="button"
+            onClick={() => {
+              onAdd(selectedProduct.id, cases, selectedSize, {
+                material: selectedProduct.material,
+                printColors: activePrintColors,
+                inkColors: inkColors.slice(0, activePrintColors),
+                artworkName: artworkName || 'Artwork to follow',
+                artworkPreview: artworkPreview || undefined,
+                artworkFile,
+                artworkPosition: artworkAdjustment,
+              })
+              setAdded(true)
+            }}
+          >
+            <Plus size={18} /> Add custom cup to quote
+          </button>
+          {added ? (
+            <div className="custom-builder-added" role="status">
+              <Check size={17} />
+              <span>Custom cup added.</span>
+              <Link to="/cart">Review quote <ArrowRight size={15} /></Link>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="box-preview-panel custom-preview-panel">
+          <div
+            className={dragStart ? 'box-preview-stage custom-preview-stage dragging' : 'box-preview-stage custom-preview-stage'}
+            onPointerDown={(event) => {
+              if (!artworkPreview) return
+              event.currentTarget.setPointerCapture(event.pointerId)
+              setDragStart({
+                pointerX: event.clientX,
+                pointerY: event.clientY,
+                x: artworkAdjustment.x,
+                y: artworkAdjustment.y,
+              })
+            }}
+            onPointerMove={(event) => {
+              if (!dragStart) return
+              setArtworkAdjustment((current) => ({
+                ...current,
+                x: Math.max(-50, Math.min(50, dragStart.x + (event.clientX - dragStart.pointerX) * 0.25)),
+                y: Math.max(-50, Math.min(50, dragStart.y + (event.clientY - dragStart.pointerY) * 0.25)),
+              }))
+              setAdded(false)
+            }}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+              setDragStart(null)
+            }}
+            onPointerCancel={() => setDragStart(null)}
+            role="img"
+            aria-label={`Live custom preview of ${selectedProduct.name}`}
+          >
+            <div className="custom-preview-badge"><i /> Live product mockup</div>
+            <div className={`custom-cup-model ${selectedCupIsPlastic ? 'plastic' : 'paper'}`}>
+              <img
+                className="custom-cup-product-image"
+                src={selectedCupIsPlastic
+                  ? '/product-images/custom-builder/blank-plastic-cup-v1.png'
+                  : '/product-images/custom-builder/blank-paper-cup-v1.png'}
+                alt=""
+              />
+              <div className="custom-artwork-window">
+                {artworkPreview ? (
+                  <img
+                    src={artworkPreview}
+                    alt="Uploaded artwork preview"
+                    style={{
+                      width: `${artworkAdjustment.size}%`,
+                      height: `${artworkAdjustment.size}%`,
+                      transform: `translate(calc(-50% + ${artworkAdjustment.x}%), calc(-50% + ${artworkAdjustment.y}%)) rotate(${artworkAdjustment.rotate}deg)`,
+                    }}
+                  />
+                ) : (
+                  <span style={{ color: inkColors[0] }}>YOUR<br />ARTWORK</span>
+                )}
+              </div>
+            </div>
+            <div className="custom-preview-instruction">
+              <Sparkles size={16} />
+              {artworkPreview ? 'Drag the artwork on the cup to reposition it' : 'Upload artwork to begin arranging it'}
+            </div>
+          </div>
+
+          <div className="box-spec-summary custom-spec-summary">
+            <span><strong>{selectedCupIsPlastic ? 'Plastic' : 'Paper'}</strong>Product</span>
+            <span><strong>{selectedSize}</strong>Selected size</span>
+            <span><strong>{activePrintColors}</strong>Print color{activePrintColors === 1 ? '' : 's'}</span>
+            <span><strong>{cases}</strong>Estimated cases</span>
+          </div>
+
+          <div className="box-preview-notes custom-preview-notes">
+            <div className="custom-preview-title">
+              <div>
+                <p>{selectedProduct.name}</p>
+                <small>{selectedProduct.material}</small>
+              </div>
+              <div className="custom-preview-inks" aria-label="Selected print colors">
+                {inkColors.slice(0, activePrintColors).map((color, index) => (
+                  <i key={index} style={{ backgroundColor: color }} title={`Color ${index + 1}: ${color}`} />
+                ))}
+              </div>
+            </div>
+            <small>
+              This is a placement preview. NexGen prepress will confirm the production artwork,
+              color matches, printable area, minimums, and final pricing before production.
+            </small>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CatalogHubPage() {
+  return (
+    <section className="catalog-hub-page page-section">
+      <header className="catalog-hub-intro">
+        <p className="eyebrow">Products</p>
+        <h1>Start with the material.</h1>
+        <p>Choose paper or plastic, then open a product family to select its exact size, material, quantity, and printing.</p>
+      </header>
+
+      <div className="catalog-division-grid">
+        <Link className="catalog-division-card paper" to="/products/paper">
+          <div className="catalog-division-copy">
+            <span>Paper</span>
+            <h2>Paper packaging</h2>
+            <p>Cups, food boxes, trays, pizza packaging, bags, and accessories.</p>
+            <strong>Explore paper <ArrowRight size={18} /></strong>
+          </div>
+          <div className="catalog-division-images" aria-hidden="true">
+            <img src="/product-images/catalog/24oz-fiber-bowl.jpg" alt="" />
+            <img src="/product-images/catalog/16in-pizza-box.jpg" alt="" />
+          </div>
+        </Link>
+
+        <Link className="catalog-division-card plastic" to="/products/plastic">
+          <div className="catalog-division-copy">
+            <span>Plastic</span>
+            <h2>Plastic packaging</h2>
+            <p>Beverage cups, food cups, trays, bowls, entrée containers, and bottles.</p>
+            <strong>Explore plastic <ArrowRight size={18} /></strong>
+          </div>
+          <div className="catalog-division-images" aria-hidden="true">
+            <img src="/product-images/catalog/20oz-stadium-cup.jpg" alt="" />
+            <img src="/product-images/catalog/32oz-pp-container.jpg" alt="" />
+          </div>
+        </Link>
+      </div>
+
+      <div className="catalog-hub-note">
+        <ShieldCheck size={20} />
+        <p><strong>Built from NexGen’s current line cards.</strong> Product families are grouped so every available size lives on one page. Case packs, minimums, and final availability are confirmed with the quote.</p>
+      </div>
+    </section>
+  )
+}
+
+type ProductCollectionPageProps = {
+  division: Exclude<ProductDivision, 'both'>
+  products: Product[]
+}
+
+function ProductCollectionPage({ division, products }: ProductCollectionPageProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const title = division === 'paper' ? 'Paper packaging' : 'Plastic packaging'
+  const description = division === 'paper'
+    ? 'Cups, cartons, trays, pizza packaging, and foodservice accessories in one organized collection.'
+    : 'Cups, lids, food containers, produce trays, party formats, and beverage bottles.'
+  const categories = ['All', ...Array.from(new Set(products.map((product) => product.category)))]
+  const { category, query } = readCollectionFilters(searchParams, categories)
+  const setFilter = (key: 'category' | 'q', value: string) => {
+    setSearchParams((current) => updateCollectionFilter(current, key, value), {
+      replace: true,
+      preventScrollReset: true,
+    })
+  }
+  const filteredProducts = products.filter((product) => {
+    const matchesCategory = category === 'All' || product.category === category
+    return matchesCategory && productMatchesSearch(product, query)
+  })
+
+  return (
+    <section className={`product-collection-page page-section ${division}`}>
+      <header className="product-collection-hero">
+        <div className="product-collection-hero-copy">
+          <p className="eyebrow">{division} collection</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+        <h1 className="product-collection-mobile-title">{division} collection</h1>
+        <span className="collection-count"><strong>{products.length}</strong> product families</span>
+      </header>
+
+      <div className="product-collection-tools">
+        <fieldset className="product-collection-categories" aria-label={`${title} categories`}>
+          {categories.map((item) => (
+            <label key={item} className={category === item ? 'active' : ''}>
+              <input
+                type="radio"
+                name={`${division}-category`}
+                value={item}
+                checked={category === item}
+                onChange={() => setFilter('category', item)}
+              />
+              <span>{item === 'All' ? 'All products' : item}</span>
+            </label>
+          ))}
+        </fieldset>
+        <label className="search-box">
+          <Search size={18} />
+          <input
+            type="search"
+            aria-label={`Search ${division} products`}
+            value={query}
+            onChange={(event) => setFilter('q', event.target.value)}
+            placeholder={`Search ${division} products`}
+          />
+        </label>
+      </div>
+
+      <div className="product-collection-results">
+        <div className="results-bar">
+          <div>
+            <p className="eyebrow">{category === 'All' ? title : category}</p>
+            <h2>{filteredProducts.length} product {filteredProducts.length === 1 ? 'family' : 'families'}</h2>
+          </div>
+          <span>Open a product to choose its available options.</span>
+        </div>
+
+        {filteredProducts.length > 0 ? (
+          <div className="product-grid">
+            {filteredProducts.map((product) => <ProductCard key={product.id} product={product} />)}
+          </div>
+        ) : (
+          <div className="catalog-empty" role="status">
+            <Search size={22} />
+            <div><strong>No matching product family.</strong><span>Clear the search or choose another category.</span></div>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+type ProductCardProps = {
+  product: Product
+}
+
+function ProductCard({ product }: ProductCardProps) {
+  return (
+    <article className="product-card">
+      <Link className="product-image-link" to={`/products/${product.id}`}>
+        <img src={product.image} alt={product.name} loading="lazy" />
+      </Link>
+      <div className="product-card-body">
+        <div className="product-meta">
+          <span>{product.category}</span>
+          <span>{product.stockType || `${product.sizes.length} format ${product.sizes.length === 1 ? 'option' : 'options'}`}</span>
+        </div>
+        <Link className="product-name-link" to={`/products/${product.id}`}>
+          <h3>{product.name}</h3>
+        </Link>
+        <p>{product.description}</p>
+        <div className="badge-list">
+          {product.badges.slice(0, 2).map((badge) => (
+            <span key={badge}>{badge}</span>
+          ))}
+        </div>
+        <Link
+          className="product-card-open"
+          to={`/products/${product.id}`}
+          aria-label={`Open ${product.name}`}
+          title={`Open ${product.name}`}
+        >
+          <ArrowRight size={18} />
+        </Link>
+      </div>
+    </article>
+  )
+}
+
+const industryIcons: Record<string, typeof Factory> = {
+  'pizza-qsr': Pizza,
+  'deli-bakery-prepared-foods': Utensils,
+  'convenience-foodservice': Store,
+  'takeout-delivery': ShoppingBag,
+  'food-processors': Factory,
+}
+
+function IndustriesHubPage() {
+  return (
+    <section className="industries-hub page-section">
+      <div className="industry-hub-intro">
+        <p className="eyebrow">Industries</p>
+        <h1>Start with how the packaging will be used.</h1>
+        <p>
+          Different foodservice operations ask different things of a package. Choose the closest
+          industry to see a focused group of products and the requirements worth discussing first.
+        </p>
+      </div>
+
+      <div className="industry-card-grid">
+        {industries.map((industry, index) => {
+          const Icon = industryIcons[industry.id] ?? Boxes
+          return (
+            <Link key={industry.id} to={`/industries/${industry.id}`}>
+              <div className="industry-card-heading">
+                <span className="industry-number">0{index + 1}</span>
+                <span className="icon-tile"><Icon size={20} /></span>
+              </div>
+              <h2>{industry.title}</h2>
+              <p>{industry.shortDescription}</p>
+              <span className="industry-card-link">
+                Explore industry <ArrowRight size={17} />
+              </span>
+            </Link>
+          )
+        })}
+      </div>
+
+      <div className="industry-hub-guidance">
+        <div>
+          <p className="eyebrow">Not sure where to start?</p>
+          <h2>Describe the food, operation, and delivery path.</h2>
+        </div>
+        <p>
+          NexGen can help narrow the format once the team understands what is being packed, how it
+          is filled, where it is sold, and how it reaches the customer.
+        </p>
+        <Link className="primary-button" to="/contact">
+          Start a project <ArrowRight size={17} />
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+function IndustryDetailPage() {
+  const { industryId } = useParams()
+  const industry = industries.find((item) => item.id === industryId)
+
+  if (!industry) {
+    return <Navigate to="/industries" replace />
+  }
+
+  const Icon = industryIcons[industry.id] ?? Boxes
+  const industryProducts = industry.productIds
+    .map((productId) => curatedProducts.find((product) => product.id === productId))
+    .filter((product): product is Product => Boolean(product))
+
+  return (
+    <section className="industry-detail-page page-section">
+      <div className="industry-detail-hero">
+        <div>
+          <span className="industry-hero-icon"><Icon size={28} /></span>
+          <p className="eyebrow">{industry.title}</p>
+          <h1>{industry.headline}</h1>
+        </div>
+        <div className="industry-detail-copy">
+          <p>{industry.description}</p>
+          <Link className="primary-button" to="/contact">
+            Discuss a program <ArrowRight size={17} />
+          </Link>
+        </div>
+      </div>
+
+      <div className="industry-needs" aria-label={`Common ${industry.title} packaging needs`}>
+        {industry.needs.map((need, index) => (
+          <div key={need}>
+            <span>0{index + 1}</span>
+            <strong>{need}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="industry-products-section">
+        <div className="industry-section-heading">
+          <div>
+            <p className="eyebrow">Relevant product families</p>
+            <h2>A focused place to begin.</h2>
+          </div>
+          <Link to="/products">
+            View the full catalog <ArrowRight size={16} />
+          </Link>
+        </div>
+
+        <div className="industry-product-grid">
+          {industryProducts.map((product) => (
+            <Link key={product.id} to={`/products/${product.id}`}>
+              <img src={product.image} alt="" loading="lazy" />
+              <div>
+                <small>{product.category}</small>
+                <h3>{product.name}</h3>
+                <p>{product.description}</p>
+                <span>View options <ChevronRight size={16} /></span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="industry-operating-model">
+        <div className="industry-section-heading">
+          <div>
+            <p className="eyebrow">Connected support</p>
+            <h2>More than a product search.</h2>
+          </div>
+        </div>
+        <div className="industry-support-grid">
+          <article>
+            <Ruler size={20} />
+            <h3>Define the requirement</h3>
+            <p>Start with the food, format, operational constraints, quantity, timing, and distribution path.</p>
+          </article>
+          <article>
+            <Sparkles size={20} />
+            <h3>Develop the package</h3>
+            <p>Coordinate structure, material route, tooling, print, artwork, sourcing, and samples.</p>
+          </article>
+          <article>
+            <Truck size={20} />
+            <h3>Plan the supply program</h3>
+            <p>Align production or sourcing with inventory, replenishment, warehousing, and freight needs.</p>
+          </article>
+        </div>
+      </div>
+
+      <div className="industry-final-cta">
+        <div>
+          <p className="eyebrow">Build the program</p>
+          <h2>Bring the known requirements. NexGen can help narrow the rest.</h2>
+        </div>
+        <Link className="primary-button" to="/contact">
+          Start a packaging request <ArrowRight size={17} />
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+type ProductDetailPageProps = {
+  products: Product[]
+  cart: CartItem[]
+  onAdd: (productId: string, cases: number, size: string, configuration?: CartConfiguration, editLineId?: string) => void
+  onRequestSample: (itemNumber: string) => void
+}
+
+function ProductDetailPage({ products, cart, onAdd, onRequestSample }: ProductDetailPageProps) {
+  const { productId } = useParams()
+  const { search } = useLocation()
+  const product = products.find((item) => item.id === productId)
+
+  if (!product) {
+    return <Navigate to="/products" replace />
+  }
+
+  const requestedLineId = new URLSearchParams(search).get('cartLine') || ''
+  const cartItem = requestedLineId
+    ? cart.find((item) => item.lineId === requestedLineId && item.productId === product.id)
+    : cart.find((item) => item.productId === product.id)
+  const editingLineId = requestedLineId && cartItem ? requestedLineId : undefined
+  return <ProductDetailContent key={`${product.id}:${requestedLineId}`} product={product} products={products} cartItem={cartItem} editingLineId={editingLineId} onAdd={onAdd} onRequestSample={onRequestSample} />
+}
+
+type ProductDetailContentProps = {
+  product: Product
+  products: Product[]
+  cartItem?: CartItem
+  editingLineId?: string
+  onAdd: ProductDetailPageProps['onAdd']
+  onRequestSample: ProductDetailPageProps['onRequestSample']
+}
+
+function ProductDetailContent({ product, products, cartItem, editingLineId, onAdd, onRequestSample }: ProductDetailContentProps) {
+  const isEntreeFamily = product.id === 'plastic-entree-containers'
+  const optionGroups = product.optionGroups || [{ label: 'Size or format', options: product.sizes }]
+  const firstOption = optionGroups.length > 1
+    ? `${optionGroups[0]?.label}: ${optionGroups[0]?.options[0] || ''}`
+    : optionGroups[0]?.options[0] || ''
+  const savedSize = cartItem?.size
+  const restoredSize = product.id === 'plastic-entree-containers' && savedSize && !product.sizes.includes(savedSize)
+    ? product.sizes.find((size) => size.startsWith(`${savedSize.split(' - ')[0]} ·`))
+    : savedSize
+  const [selectedSize, setSelectedSize] = useState(restoredSize || firstOption)
+  const [selectedMaterialChoice, setSelectedMaterialChoice] = useState(cartItem?.material || product.materials?.[0] || product.material)
+  const [selectedComponent, setSelectedComponent] = useState<'Base' | 'Lid'>(cartItem?.component || 'Base')
+  const [selectedQuantity, setSelectedQuantity] = useState(editingLineId ? cartItem?.cases || 1 : 1)
+  const [printColors, setPrintColors] = useState<PrintColorCount>(cartItem?.printColors || 0)
+  const [artworkName, setArtworkName] = useState(cartItem?.artworkName || '')
+  const [artworkPreview, setArtworkPreview] = useState(cartItem?.artworkPreview || '')
+  const [artworkFile, setArtworkFile] = useState<File | undefined>(cartItem?.artworkFile)
+  const [artworkError, setArtworkError] = useState('')
+  const [mobileStep, setMobileStep] = useState(1)
+  const printableProduct = Boolean(product.maxPrintColors)
+  const spec = product.publicSpec
+  const specDownloads = product.specDownloadsBySize?.[selectedSize] || []
+  const selectedComponentSpec = isEntreeFamily ? specDownloads.find((resource) => resource.component === selectedComponent) : undefined
+  const selectedMaterial = selectedComponentSpec?.material || selectedMaterialChoice
+  const cartActionLabel = editingLineId
+    ? 'Update cart item'
+    : selectedComponentSpec ? `Add ${selectedComponentSpec.component.toLowerCase()} to quote` : 'Add to quote'
+  const relatedPool = product.division
+    ? products.filter((item) => item.division === product.division)
+    : products
+  const relatedProducts = relatedPool
+    .filter((item) => item.id !== product.id && (item.category === product.category || item.applications.some((application) => product.applications.includes(application))))
+    .slice(0, 3)
+
+  const selectArtwork = (file: File | undefined) => {
+    if (!file) return
+    let contentType: string
+    try {
+      contentType = artworkFileDetails(file).contentType
+    } catch (error) {
+      setArtworkError(error instanceof Error ? error.message : 'Choose a supported artwork file.')
+      return
+    }
+
+    setArtworkError('')
+    setArtworkFile(file)
+    setArtworkName(file.name)
+    if (printColors === 0) setPrintColors(1)
+
+    if (!contentType.startsWith('image/')) {
+      setArtworkPreview('')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => setArtworkPreview(typeof reader.result === 'string' ? reader.result : '')
+    reader.onerror = () => setArtworkError('This artwork could not be previewed. Try a PNG, JPG, or SVG file.')
+    reader.readAsDataURL(file)
+  }
+
+  const addConfiguredProduct = () => {
+    if (isEntreeFamily && !selectedComponentSpec) return
+    const includeArtwork = printableProduct && printColors > 0
+    onAdd(product.id, selectedQuantity, selectedSize, {
+      material: selectedMaterial,
+      component: selectedComponentSpec?.component,
+      itemNumber: selectedComponentSpec?.itemNumber,
+      productName: selectedComponentSpec?.productName,
+      printColors: printableProduct ? printColors : 0,
+      inkColors: editingLineId && printableProduct && printColors > 0 && printColors === cartItem?.printColors ? cartItem.inkColors : undefined,
+      artworkName: includeArtwork ? artworkName : undefined,
+      artworkPreview: includeArtwork ? artworkPreview : undefined,
+      artworkFile: includeArtwork ? artworkFile : undefined,
+      artworkPosition: editingLineId && printableProduct && printColors > 0 ? cartItem?.artworkPosition : undefined,
+    }, editingLineId)
+  }
+
+  return (
+    <section className="product-detail-page page-section">
+      <header className="product-detail-mobile-heading">
+        <p className="eyebrow">{spec ? `Item ${spec.itemNumber}` : `${product.category} packaging`}</p>
+        <h1>{product.name}</h1>
+      </header>
+
+      <div className="product-detail-layout">
+        <div className="product-detail-media">
+          <div className="product-detail-image-stage">
+            <img src={product.image} alt={product.imageNote ? `${product.name} (illustrative image)` : product.name} />
+          </div>
+          <div className="product-media-caption">
+            <span>{spec ? `Item ${spec.itemNumber}` : product.division ? `${product.division} collection` : product.sku || product.category}</span>
+            <strong>{product.imageNote || (spec?.imageStatus === 'Concept' ? 'Concept image · Photography pending' : selectedMaterial)}</strong>
+          </div>
+        </div>
+
+        <div className="product-detail-copy">
+          <p className="eyebrow">{spec ? `Item ${spec.itemNumber}` : `${product.category} packaging`}</p>
+          <h1>{product.name}</h1>
+          <p className="product-detail-lead">{product.description}</p>
+          <div className="badge-list product-detail-badges">
+            {product.badges.map((badge) => <span key={badge}>{badge}</span>)}
+          </div>
+
+          <div className="product-configurator-intro">
+            <p className="eyebrow">{editingLineId ? 'Edit cart item' : 'Configure for a quote'}</p>
+            <h2>Choose what you need.</h2>
+            <p>Make each selection below. NexGen will confirm availability, freight, minimums, and final pricing.</p>
+          </div>
+
+          <fieldset className={`product-choice-group product-mobile-step${mobileStep === 1 ? ' mobile-open' : ''}`}>
+            <legend>
+              <button
+                className="product-step-trigger"
+                type="button"
+                aria-expanded={mobileStep === 1}
+                aria-controls={`product-size-options-${product.id}`}
+                onClick={() => setMobileStep((current) => current === 1 ? 0 : 1)}
+              >
+                <span className="product-step-number">1</span>
+                <span className="product-step-label"><strong>Size or format</strong><small>{selectedSize}</small></span>
+                <ChevronRight className="product-step-chevron" size={18} />
+              </button>
+            </legend>
+            <div className="product-option-groups product-step-content" id={`product-size-options-${product.id}`}>
+              {optionGroups.map((group) => (
+                <div className="product-option-group" key={group.label}>
+                  {optionGroups.length > 1 ? <h3>{group.label}</h3> : null}
+                  <div className="product-choice-grid">
+                    {group.options.map((size) => {
+                      const optionValue = optionGroups.length > 1 ? `${group.label}: ${size}` : size
+                      return (
+                        <label key={optionValue} className={selectedSize === optionValue ? 'selected' : ''}>
+                          <input
+                            type="radio"
+                            name={`product-size-${product.id}`}
+                            value={optionValue}
+                            checked={selectedSize === optionValue}
+                            onChange={() => {
+                              setSelectedSize(optionValue)
+                              setMobileStep(2)
+                            }}
+                          />
+                          <span>
+                            <strong>{size}</strong>
+                            <small>{product.casePack}</small>
+                          </span>
+                          {selectedSize === optionValue ? <Check size={18} /> : null}
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className={`product-choice-group product-mobile-step${mobileStep === 2 ? ' mobile-open' : ''}`}>
+            <legend>
+              <button
+                className="product-step-trigger"
+                type="button"
+                aria-expanded={mobileStep === 2}
+                aria-controls={`product-material-options-${product.id}`}
+                onClick={() => setMobileStep((current) => current === 2 ? 0 : 2)}
+              >
+                <span className="product-step-number">2</span>
+                <span className="product-step-label"><strong>{isEntreeFamily ? 'Base or lid' : 'Material'}</strong><small>{selectedComponentSpec ? `${selectedComponentSpec.component} · Item ${selectedComponentSpec.itemNumber}` : selectedMaterial}</small></span>
+                <ChevronRight className="product-step-chevron" size={18} />
+              </button>
+            </legend>
+            <div className="product-choice-grid material-choice-grid product-step-content" id={`product-material-options-${product.id}`}>
+              {isEntreeFamily ? specDownloads.map((resource) => (
+                <label key={resource.component} className={selectedComponent === resource.component ? 'selected' : ''}>
+                  <input
+                    type="radio"
+                    name={`product-component-${product.id}`}
+                    value={resource.component}
+                    checked={selectedComponent === resource.component}
+                    onChange={() => {
+                      setSelectedComponent(resource.component)
+                      setMobileStep(3)
+                    }}
+                  />
+                  <span><strong>{resource.component} · Item {resource.itemNumber}</strong><small>{resource.material}</small></span>
+                  {selectedComponent === resource.component ? <Check size={18} /> : null}
+                </label>
+              )) : (product.materials || [product.material]).map((material) => (
+                <label key={material} className={selectedMaterial === material ? 'selected' : ''}>
+                  <input
+                    type="radio"
+                    name={`product-material-${product.id}`}
+                    value={material}
+                    checked={selectedMaterial === material}
+                    onChange={() => {
+                      setSelectedMaterialChoice(material)
+                      setMobileStep(3)
+                    }}
+                  />
+                  <span><strong>{material}</strong><small>Final compatibility confirmed by NexGen</small></span>
+                  {selectedMaterial === material ? <Check size={18} /> : null}
+                </label>
+              ))}
+              {isEntreeFamily ? <p className="product-component-note">Add bases and lids separately to choose a case quantity for each.</p> : null}
+            </div>
+          </fieldset>
+
+          <fieldset className={`product-choice-group product-mobile-step${mobileStep === 3 ? ' mobile-open' : ''}`}>
+            <legend>
+              <button
+                className="product-step-trigger"
+                type="button"
+                aria-expanded={mobileStep === 3}
+                aria-controls={`product-quantity-options-${product.id}`}
+                onClick={() => setMobileStep((current) => current === 3 ? 0 : 3)}
+              >
+                <span className="product-step-number">3</span>
+                <span className="product-step-label"><strong>Quantity</strong><small>{selectedQuantity} {selectedQuantity === 1 ? 'case' : 'cases'}</small></span>
+                <ChevronRight className="product-step-chevron" size={18} />
+              </button>
+            </legend>
+            <div className="product-quantity-grid product-step-content" id={`product-quantity-options-${product.id}`}>
+              {quoteQuantityOptions.map((quantity) => (
+                <label key={quantity} className={selectedQuantity === quantity ? 'selected' : ''}>
+                  <input
+                    type="radio"
+                    name={`product-quantity-${product.id}`}
+                    value={quantity}
+                    checked={selectedQuantity === quantity}
+                    onChange={() => {
+                      setSelectedQuantity(quantity)
+                      if (printableProduct) setMobileStep(4)
+                    }}
+                  />
+                  <strong>{quantity}</strong>
+                  <span>{quantity === 1 ? 'case' : 'cases'}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {printableProduct ? (
+            <section className={`cup-print-config product-mobile-step${mobileStep === 4 ? ' mobile-open' : ''}`} aria-labelledby="cup-print-heading">
+              <button
+                className="cup-print-heading product-step-trigger"
+                type="button"
+                aria-expanded={mobileStep === 4}
+                aria-controls={`product-print-options-${product.id}`}
+                onClick={() => setMobileStep((current) => current === 4 ? 0 : 4)}
+              >
+                <span className="product-step-number">4</span>
+                <span className="product-step-label">
+                  <strong id="cup-print-heading">Custom printing</strong>
+                  <small>{printColors === 0 ? 'Unprinted' : `${printColors} color${printColors === 1 ? '' : 's'}`}</small>
+                </span>
+                <ChevronRight className="product-step-chevron" size={18} />
+              </button>
+
+              <div className="product-step-content" id={`product-print-options-${product.id}`}>
+                <fieldset className="print-color-options">
+                  <legend>Number of print colors</legend>
+                  {([0, 1, 2, 3, 4] as PrintColorCount[]).filter((count) => count <= (product.maxPrintColors || 0)).map((count) => (
+                    <label key={count} className={printColors === count ? 'selected' : ''}>
+                      <input type="radio" name={`print-colors-${product.id}`} value={count} checked={printColors === count} onChange={() => setPrintColors(count)} />
+                      <strong>{count === 0 ? 'None' : count}</strong>
+                      <span>{count === 0 ? 'Unprinted' : `${count} color${count === 1 ? '' : 's'}`}</span>
+                    </label>
+                  ))}
+                </fieldset>
+
+                {printColors > 0 ? (
+                  <div className="cup-artwork-area">
+                    <label className="cup-artwork-upload">
+                      <Upload size={19} />
+                      <span><strong>{artworkName || 'Add your artwork'}</strong><small>PNG, JPG, SVG, PDF, AI, or EPS · 10 MB max</small></span>
+                      <input type="file" accept=".ai,.eps,.pdf,.png,.jpg,.jpeg,.svg,image/*" onChange={(event) => selectArtwork(event.target.files?.[0])} />
+                    </label>
+                    {artworkPreview ? <div className="cup-artwork-preview"><img src={artworkPreview} alt="Uploaded product artwork preview" /><span>Artwork preview</span></div> : null}
+                    {artworkError ? <p className="cup-artwork-error" role="alert">{artworkError}</p> : null}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
+          <div className="product-detail-note">
+            <ShieldCheck size={20} />
+            <div>
+              <strong>Reviewed by a packaging specialist.</strong>
+              <span>We verify print coverage, lid compatibility, minimums, freight, and delivery timing before sending your quote.</span>
+            </div>
+          </div>
+
+          <div className="product-detail-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={addConfiguredProduct}
+              disabled={isEntreeFamily && !selectedComponentSpec}
+            >
+              <PackageOpen size={18} />
+              {cartActionLabel}
+              <ArrowRight size={18} />
+            </button>
+            {cartItem ? <Link className="product-view-cart" to="/cart">View cart <ArrowRight size={17} /></Link> : null}
+          </div>
+
+          {spec || specDownloads.length > 0 ? (
+            <div className="product-spec-resource-links" aria-label="Product resources">
+              {spec ? <a href={spec.specSheetUrl} download><Download size={17} /> Download specification</a> : null}
+              {specDownloads.map((resource) => (
+                <a key={resource.url} href={resource.url} download><Download size={17} /> {resource.label}</a>
+              ))}
+              {spec ? <Link to="/contact" onClick={() => onRequestSample(spec.itemNumber)}>Request a sample <ArrowRight size={16} /></Link> : null}
+            </div>
+          ) : null}
+
+          <Link className="text-link" to="/contact">
+            Need a variation that is not listed? Talk to the sales team <ArrowRight size={16} />
+          </Link>
+        </div>
+
+        <aside className="product-quote-summary" aria-label="Current quote configuration">
+          <p className="eyebrow">Your configuration</p>
+          <h2>Quote summary</h2>
+          <dl className="product-quote-summary-list">
+            <div>
+              <dt>Size or format</dt>
+              <dd>{selectedSize}</dd>
+              <Check size={17} aria-hidden="true" />
+            </div>
+            {selectedComponentSpec ? (
+              <div>
+                <dt>Component / item</dt>
+                <dd>{selectedComponentSpec.component} · Item {selectedComponentSpec.itemNumber}</dd>
+                <Check size={17} aria-hidden="true" />
+              </div>
+            ) : null}
+            <div>
+              <dt>Material</dt>
+              <dd>{selectedMaterial}</dd>
+              <Check size={17} aria-hidden="true" />
+            </div>
+            <div>
+              <dt>Quantity</dt>
+              <dd>{selectedQuantity} {selectedQuantity === 1 ? 'case' : 'cases'}</dd>
+              <Check size={17} aria-hidden="true" />
+            </div>
+            <div>
+              <dt>Printing</dt>
+              <dd>
+                {printableProduct
+                  ? printColors === 0
+                    ? 'Unprinted'
+                    : `${printColors}-color print${artworkName ? ` · ${artworkName}` : ''}`
+                  : 'Standard product'}
+              </dd>
+              <Check size={17} aria-hidden="true" />
+            </div>
+          </dl>
+
+          <div className="product-quote-summary-actions">
+            <button className="primary-button" type="button" onClick={addConfiguredProduct} disabled={isEntreeFamily && !selectedComponentSpec}>
+              {cartActionLabel} <ArrowRight size={17} />
+            </button>
+            {spec ? <a href={spec.specSheetUrl} download><Download size={15} /> Download specification</a> : null}
+            {specDownloads.map((resource) => (
+              <a key={resource.url} href={resource.url} download><Download size={15} /> {resource.label}</a>
+            ))}
+            {spec ? <Link to="/contact" onClick={() => onRequestSample(spec.itemNumber)}>Request a sample</Link> : null}
+            {cartItem ? <Link to="/cart">View quote cart</Link> : null}
+          </div>
+
+          <div className="product-summary-trust">
+            <ShieldCheck size={17} />
+            <span><strong>Reviewed before pricing.</strong> A NexGen specialist confirms compatibility, minimums, freight, and timing.</span>
+          </div>
+        </aside>
+      </div>
+
+      <section className="product-details-strip" aria-labelledby="product-details-title">
+        <div>
+          <p className="eyebrow">At a glance</p>
+          <h2 id="product-details-title">Product details.</h2>
+          {spec ? <p className="product-public-spec-note">{spec.sourceNote}</p> : null}
+        </div>
+        <dl className="product-spec-grid">
+          {spec ? (
+            <>
+              <div><dt>Item / capacity</dt><dd>{spec.itemNumber} · {spec.capacity}</dd></div>
+              <div><dt>Dimensions / weight</dt><dd>{spec.dimensions} · {spec.gramWeight}</dd></div>
+              <div><dt>Case pack</dt><dd>{product.unitsPerCase || spec.sleevesPerCase * spec.unitsPerSleeve} units · {spec.sleevesPerCase} × {spec.unitsPerSleeve}</dd></div>
+              <div><dt>Pallet</dt><dd>{spec.casesPerPallet} cases</dd></div>
+            </>
+          ) : (
+            <>
+              <div><dt>Material</dt><dd>{selectedMaterial}</dd></div>
+              <div><dt>Case pack</dt><dd>{product.casePack}</dd></div>
+              <div><dt>Lead time</dt><dd>{product.leadTime}</dd></div>
+              <div><dt>Best for</dt><dd>{product.applications.join(', ')}</dd></div>
+            </>
+          )}
+        </dl>
+      </section>
+
+      {relatedProducts.length > 0 && (
+        <div className="related-products">
+          <div>
+            <p className="eyebrow">Related options</p>
+            <h2>Continue exploring.</h2>
+          </div>
+          <div className="related-product-links">
+            {relatedProducts.map((item) => (
+              <Link key={item.id} to={`/products/${item.id}`}>
+                <img src={item.image} alt="" loading="lazy" />
+                <span>
+                  <small>{item.category}</small>
+                  <strong>{item.name}</strong>
+                </span>
+                <ChevronRight size={17} />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
 }
