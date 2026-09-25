@@ -1,7 +1,11 @@
 import type { Product } from './catalog'
 
+function normalizeSearchText(value: string): string {
+  return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+}
+
 export function productMatchesSearch(product: Product, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase()
+  const normalizedQuery = normalizeSearchText(query.trim())
   if (!normalizedQuery) return true
 
   const componentTerms = Object.values(product.specDownloadsBySize || {})
@@ -15,7 +19,7 @@ export function productMatchesSearch(product: Product, query: string): boolean {
     ...product.badges,
     ...product.sizes,
     ...componentTerms,
-  ].filter(Boolean).join(' ').toLowerCase()
+  ].filter(Boolean).join(' ')
 
-  return searchableText.includes(normalizedQuery)
+  return normalizeSearchText(searchableText).includes(normalizedQuery)
 }
