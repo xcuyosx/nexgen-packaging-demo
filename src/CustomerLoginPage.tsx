@@ -33,7 +33,9 @@ export function CustomerLoginPage({
 }: CustomerLoginPageProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const requestedMode = new URLSearchParams(location.search).get('mode')
+  const search = new URLSearchParams(location.search)
+  const requestedMode = search.get('mode')
+  const checkout = search.get('checkout') === '1'
   const mode: AuthMode = recoveryToken ? 'set-password'
     : recoveryError || requestedMode === 'reset' ? 'request-reset'
       : requestedMode === 'register' ? 'register' : 'signin'
@@ -44,7 +46,11 @@ export function CustomerLoginPage({
   const [showPassword, setShowPassword] = useState(false)
 
   const switchMode = (next: AuthMode, keepFeedback = false) => {
-    navigate(next === 'register' ? '/account?mode=register' : next === 'request-reset' ? '/account?mode=reset' : '/account')
+    const nextSearch = new URLSearchParams()
+    if (next === 'register') nextSearch.set('mode', 'register')
+    if (next === 'request-reset') nextSearch.set('mode', 'reset')
+    if (checkout) nextSearch.set('checkout', '1')
+    navigate(`/account${nextSearch.size ? `?${nextSearch}` : ''}`)
     setPassword('')
     setShowPassword(false)
     if (!keepFeedback) onClearFeedback()
@@ -70,8 +76,8 @@ export function CustomerLoginPage({
     'set-password': 'Choose a new password',
   }[mode]
   const description = {
-    signin: 'Access your quotes, orders, and account details.',
-    register: 'Use your work email to create a NexGen customer account.',
+    signin: checkout ? 'Sign in to finish your quote request.' : 'Access your quotes, orders, and account details.',
+    register: checkout ? 'Create an account to finish your quote request.' : 'Use your work email to create a NexGen customer account.',
     'request-reset': 'Enter your email and we’ll help you get back in.',
     'set-password': 'Enter a new password for your sign-in.',
   }[mode]

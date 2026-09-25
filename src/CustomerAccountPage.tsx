@@ -126,6 +126,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
   const [draft, setDraft] = useState<CustomerAccount | null>(null)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [showBillingForm, setShowBillingForm] = useState(false)
   const [showLocationForm, setShowLocationForm] = useState(false)
   const [editingLocationId, setEditingLocationId] = useState('')
@@ -138,6 +139,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
 
   const currentAccount = draft ?? account
   const updateDraft = (updater: (current: CustomerAccount) => CustomerAccount) => {
+    setSaved(false)
     setDraft((current) => updater(current ?? structuredClone(account)))
   }
 
@@ -148,13 +150,27 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
   }, [currentAccount.companyName, currentAccount.contactName])
 
   const saveAccount = async () => {
+    if (saving) return
     setSaving(true)
-    await onSave(currentAccount)
-    setDraft(null)
-    setSaving(false)
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 1800)
+    setSaved(false)
+    setSaveError('')
+    try {
+      await onSave(currentAccount)
+      setDraft(null)
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 1800)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save your customer account right now.')
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const saveErrorNotice = saveError ? (
+    <p className="account-save-error" role="alert">
+      We couldn’t confirm this update was saved to your NexGen account. Your edits remain here so you can retry. {saveError}
+    </p>
+  ) : null
 
   const addBillingProfile = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -299,13 +315,14 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
               description="Keep your company and primary contact information current."
               onBack={returnToAccount}
               action={
-                <button className="account-primary-action" type="submit" form="account-profile-form">
+                <button className="account-primary-action" type="submit" form="account-profile-form" disabled={saving}>
                   {saved ? <Check size={17} /> : null}{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
                 </button>
               }
             />
+            {saveErrorNotice}
             <section className="account-content-card">
-              <form id="account-profile-form" className="account-form" onSubmit={(event) => { event.preventDefault(); saveAccount() }}>
+              <form id="account-profile-form" className="account-form" onSubmit={(event) => { event.preventDefault(); void saveAccount() }}>
                 <label>Company name<input value={currentAccount.companyName} autoComplete="organization" onChange={(event) => updateDraft((current) => ({ ...current, companyName: event.target.value }))} /></label>
                 <label>Primary contact<input value={currentAccount.contactName} autoComplete="name" onChange={(event) => updateDraft((current) => ({ ...current, contactName: event.target.value }))} /></label>
                 <label>Sign-in email<input value={currentAccount.email} type="email" autoComplete="email" readOnly aria-readonly="true" /></label>
@@ -419,6 +436,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
               onBack={returnToAccount}
               action={<button className="account-primary-action" type="button" disabled={saving} onClick={() => void saveAccount()}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}</button>}
             />
+            {saveErrorNotice}
             <div className="account-detail-stack">
               <section className="account-content-card">
                 <div className="account-section-heading">
@@ -478,6 +496,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
               onBack={returnToAccount}
               action={<button className="account-primary-action" type="button" disabled={saving} onClick={() => void saveAccount()}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}</button>}
             />
+            {saveErrorNotice}
             <section className="account-content-card">
               <div className="account-section-heading">
                 <div><h2>Saved locations</h2><p>Add every warehouse, restaurant group, or distribution point used for delivery.</p></div>
@@ -650,7 +669,7 @@ function accountSyncLabel(
   if (status === 'loading') return 'Connecting to your NexGen customer record…'
   if (status === 'saving') return 'Updating the NexGen sales record…'
   if (status === 'saved') return 'NexGen sales record updated'
-  if (status === 'offline') return 'Saved on this device; shared sync unavailable'
+  if (status === 'offline') return 'NexGen sync unavailable; changes may be only on this device'
   if (!lastSyncedAt) return 'Connected to your NexGen customer record'
   return `Connected · Updated ${new Date(lastSyncedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
 }

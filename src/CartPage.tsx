@@ -1,8 +1,9 @@
 import type { FormEvent } from 'react'
-import { ArrowLeft, Check, ChevronRight, FileImage, Mail, Minus, PackageOpen, Plus, Trash2 } from 'lucide-react'
+import { Check, ChevronRight, FileImage, Mail, Minus, PackageOpen, Plus, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { CustomerAccount } from './customerAccount'
 import type { CartLine, QuoteContact } from './storefrontCart'
+import { artworkNeedsReattachment } from './artworkUpload'
 
 type CartPageProps = {
   items: CartLine[]
@@ -39,13 +40,19 @@ export function CartPage({
     <section className="cart-page page-section">
       <div className="cart-page-shell">
         <header className="cart-page-header">
-          <Link to="/products"><ArrowLeft size={17} /> Continue shopping</Link>
           <p className="eyebrow">Quote builder</p>
           <h1>Your cart</h1>
           <p>Review quantities and specifications, then send the completed list to NexGen for pricing.</p>
         </header>
 
-        {items.length === 0 ? (
+        {requestReady && requestNumber ? (
+          <section className="cart-page-empty" role="status">
+            <Check size={36} />
+            <h2>Quote request received</h2>
+            <p>Request <strong>{requestNumber}</strong> is with NexGen for review. You can track its status in your account.</p>
+            <Link className="primary-button" to="/account?view=quotes">Track your request <ChevronRight size={17} /></Link>
+          </section>
+        ) : items.length === 0 ? (
           <section className="cart-page-empty">
             <PackageOpen size={36} />
             <h2>Your cart is empty</h2>
@@ -80,6 +87,7 @@ export function CartPage({
                       <small>{item.material || item.product.material}</small>
                       {item.product.imageNote && item.component !== 'Lid' ? <small>Image: {item.product.imageNote}</small> : null}
                       {item.product.id === 'plastic-entree-containers' && !item.component ? <small role="alert">Remove this line and choose a specific base or lid before requesting pricing.</small> : null}
+                      {artworkNeedsReattachment(item.artworkName, item.artworkFile) ? <small role="alert">Reattach {item.artworkName} on the product page before requesting pricing.</small> : null}
                       {item.printColors > 0 ? (
                         <div className="cart-print-summary">
                           <FileImage size={15} />
@@ -113,9 +121,16 @@ export function CartPage({
             <aside className="quote-request-panel" aria-labelledby="quote-request-heading">
               <div className="quote-request-heading">
                 <p className="eyebrow">Final step</p>
-                <h2 id="quote-request-heading">Request pricing</h2>
+                <h2 id="quote-request-heading">{signedIn ? 'Request pricing' : 'Sign in to request pricing'}</h2>
                 <p>No payment is collected. NexGen will review specifications, volume, freight, and availability before returning a quote.</p>
               </div>
+
+              {!signedIn ? (
+                <div className="quote-request-signin">
+                  <p>Products and quantities stay in this browser while you sign in. If you reload the page, reattach any artwork before submitting.</p>
+                  <Link className="primary-button full-width" to="/account?checkout=1">Sign in or create an account <ChevronRight size={17} /></Link>
+                </div>
+              ) : null}
 
               <div className="quote-request-totals">
                 <span><strong>{items.length}</strong> Products</span>
@@ -123,7 +138,7 @@ export function CartPage({
                 <span><strong>Pending</strong> Final pricing</span>
               </div>
 
-              <form className="quote-request-form" onSubmit={onSubmit}>
+              {signedIn ? <form className="quote-request-form" onSubmit={onSubmit}>
                 <label>Name<input required autoComplete="name" value={contact.name} onChange={(event) => onContactChange('name', event.target.value)} /></label>
                 <label>Company<input required autoComplete="organization" value={contact.company} onChange={(event) => onContactChange('company', event.target.value)} /></label>
                 <label>Email<input required type="email" autoComplete="email" value={contact.email} onChange={(event) => onContactChange('email', event.target.value)} /></label>
@@ -160,9 +175,8 @@ export function CartPage({
                     Request <strong>{requestNumber}</strong> was received. <Link to="/account?view=quotes">Track it in your account</Link>.
                   </p>
                 ) : null}
-              </form>
+              </form> : null}
 
-              {!signedIn ? <p className="quote-request-account-note"><Link to="/account">Sign in or create an account</Link> to submit this request and use saved billing and delivery locations.</p> : null}
               <small className="quote-request-disclaimer">Your request is sent directly to the NexGen quote workspace for pricing and follow-up.</small>
             </aside>
           </div>
