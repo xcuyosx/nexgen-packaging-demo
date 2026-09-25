@@ -11,5 +11,8 @@ test('search finds the entrée family by a verified component item number', () =
   assert.ok(deli)
   assert.equal(productMatchesSearch(entree, '817'), true)
   assert.equal(productMatchesSearch(entree, '32 oz Medium Entrée Base'), true)
+  assert.equal(productMatchesSearch(entree, 'entree'), true)
+  assert.equal(productMatchesSearch(entree, 'ENTREE'), true)
   assert.equal(productMatchesSearch(deli, '817'), false)
+  assert.equal(productMatchesSearch(deli, 'entree'), false)
 })

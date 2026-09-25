@@ -12,6 +12,7 @@ export type CartConfiguration = {
   inkColors?: string[]
   artworkName?: string
   artworkPreview?: string
+  artworkFile?: File
   artworkPosition?: {
     size: number
     x: number
@@ -33,6 +34,7 @@ export type CartItem = {
   inkColors?: string[]
   artworkName?: string
   artworkPreview?: string
+  artworkFile?: File
   artworkPosition?: CartConfiguration['artworkPosition']
 }
 
@@ -41,6 +43,23 @@ export type CartLine = CartItem & {
 }
 
 type CartVariant = Omit<CartItem, 'lineId' | 'cases'>
+
+function configuredVariant(productId: string, size: string | undefined, configuration: CartConfiguration): CartVariant {
+  return {
+    productId,
+    size,
+    material: configuration.material,
+    component: configuration.component,
+    itemNumber: configuration.itemNumber,
+    productName: configuration.productName,
+    printColors: configuration.printColors || 0,
+    inkColors: configuration.inkColors,
+    artworkName: configuration.artworkName,
+    artworkPreview: configuration.artworkPreview,
+    artworkFile: configuration.artworkFile,
+    artworkPosition: configuration.artworkPosition,
+  }
+}
 
 function sameCartVariant(left: CartVariant, right: CartVariant): boolean {
   const leftColors = left.inkColors || []
@@ -58,6 +77,7 @@ function sameCartVariant(left: CartVariant, right: CartVariant): boolean {
     && leftColors.every((color, index) => color === rightColors[index])
     && left.artworkName === right.artworkName
     && left.artworkPreview === right.artworkPreview
+    && left.artworkFile === right.artworkFile
     && (leftPosition === rightPosition || Boolean(leftPosition && rightPosition
       && leftPosition.size === rightPosition.size
       && leftPosition.x === rightPosition.x
@@ -75,25 +95,27 @@ export function addConfiguredCartItem(
 ): CartItem[] {
   if (cases <= 0) return cart
 
-  const variant: CartVariant = {
-    productId,
-    size,
-    material: configuration.material,
-    component: configuration.component,
-    itemNumber: configuration.itemNumber,
-    productName: configuration.productName,
-    printColors: configuration.printColors || 0,
-    inkColors: configuration.inkColors,
-    artworkName: configuration.artworkName,
-    artworkPreview: configuration.artworkPreview,
-    artworkPosition: configuration.artworkPosition,
-  }
+  const variant = configuredVariant(productId, size, configuration)
   const existing = cart.find((item) => sameCartVariant(item, variant))
   if (existing) {
     return cart.map((item) => item.lineId === existing.lineId ? { ...item, cases: item.cases + cases } : item)
   }
 
   return [...cart, { ...variant, lineId: newLineId, cases }]
+}
+
+export function replaceConfiguredCartLine(
+  cart: CartItem[],
+  lineId: string,
+  productId: string,
+  cases: number,
+  size?: string,
+  configuration: CartConfiguration = {},
+): CartItem[] {
+  if (cases <= 0 || !cart.some((item) => item.lineId === lineId && item.productId === productId)) return cart
+
+  const variant = configuredVariant(productId, size, configuration)
+  return cart.map((item) => item.lineId === lineId ? { ...variant, lineId, cases } : item)
 }
 
 export function changeCartLineCases(cart: CartItem[], lineId: string, delta: number): CartItem[] {

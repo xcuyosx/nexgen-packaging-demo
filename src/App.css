@@ -608,6 +608,22 @@
   opacity: 0.7;
 }
 
+.quote-request-signin {
+  display: grid;
+  gap: 14px;
+}
+
+.quote-request-signin p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.quote-request-signin .primary-button {
+  min-height: 50px;
+}
+
 .quote-request-error {
   grid-column: 1 / -1;
   margin: 0;
@@ -3795,6 +3811,10 @@ main {
   display: flex;
   gap: 8px;
   overflow-x: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   scrollbar-width: none;
 }
 
@@ -3802,11 +3822,26 @@ main {
   display: none;
 }
 
-.product-collection-categories button {
+.product-collection-categories label {
+  position: relative;
+  flex: none;
+  cursor: pointer;
+}
+
+.product-collection-categories input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.product-collection-categories label span {
   min-height: 44px;
   padding: 0 16px;
   border: 0;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
   color: #4f5d58;
   background: transparent;
   font: inherit;
@@ -3816,14 +3851,19 @@ main {
   cursor: pointer;
 }
 
-.product-collection-categories button:hover {
+.product-collection-categories label:hover span {
   color: var(--green);
   background: #eef5f2;
 }
 
-.product-collection-categories button.active {
+.product-collection-categories label.active span {
   color: #ffffff;
   background: var(--green);
+}
+
+.product-collection-categories input:focus-visible + span {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
 }
 
 .product-collection-tools .search-box {
@@ -5804,6 +5844,17 @@ main {
   color: #8d402a;
 }
 
+.account-save-error {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  border: 1px solid #e9c9bc;
+  border-radius: 12px;
+  color: #8d402a;
+  background: #fff4ef;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .account-quote-error button,
 .account-empty-state > button {
   padding: 0;
@@ -7090,11 +7141,11 @@ footer {
 
   .product-collection-categories {
     order: 2;
-    margin-right: -14px;
-    padding-right: 14px;
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
 
-  .product-collection-categories button {
+  .product-collection-categories label span {
     min-height: 38px;
     padding-inline: 13px;
   }

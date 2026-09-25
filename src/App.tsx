@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft,
   ArrowRight,
   Boxes,
   Check,
@@ -43,6 +42,8 @@ import type { Product, ProductDivision } from './catalog'
 import { industries } from './industries'
 import { fetchStorefrontProducts, storefrontFallbackProducts } from './storefrontCatalog'
 import { productMatchesSearch } from './productSearch'
+import { readCollectionFilters, updateCollectionFilter } from './collectionFilters'
+import { artworkFileDetails, artworkNeedsReattachment } from './artworkUpload'
 import { TradeShowCalendar } from './TradeShowCalendar'
 import { CustomerAccountPage, CustomerOrderDetailPage } from './CustomerAccountPage'
 import { CustomerLoginPage } from './CustomerLoginPage'
@@ -69,8 +70,9 @@ import {
   updateCustomerPassword,
 } from './customerAccount'
 import type { CustomerAccount, CustomerOrder, CustomerOrderLine, CustomerQuoteHistoryEntry, CustomerSession } from './customerAccount'
-import { addConfiguredCartItem, buildQuoteRequestLine, changeCartLineCases, removeCartLine } from './storefrontCart'
+import { addConfiguredCartItem, buildQuoteRequestLine, changeCartLineCases, removeCartLine, replaceConfiguredCartLine } from './storefrontCart'
 import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
+import { loadCart, saveCart } from './cartPersistence'
 import './App.css'
 
 const heroImage =
@@ -95,26 +97,32 @@ const defaultArtworkAdjustment: ArtworkAdjustment = {
 
 function RouteScrollManager() {
   const { pathname, hash } = useLocation()
+  const navigationType = useNavigationType()
+  const previousPathname = useRef(pathname)
 
   useEffect(() => {
+    const changedPage = pathname !== previousPathname.current
+    previousPathname.current = pathname
     if (hash) {
       requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView())
       return
     }
 
-    window.scrollTo({ top: 0, behavior: 'auto' })
-  }, [hash, pathname])
+    if (changedPage && navigationType !== 'POP') window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [hash, pathname, navigationType])
 
   return null
 }
 
 function App() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
+  const navigate = useNavigate()
+  const returningToCart = pathname === '/account' && new URLSearchParams(search).get('checkout') === '1'
   const [passwordRecovery, setPasswordRecovery] = useState(readCustomerPasswordRecoveryLink)
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(() => passwordRecovery ? null : loadCustomerSession())
   const customerSessionToken = customerSession?.token || ''
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(storefrontFallbackProducts)
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [cart, setCart] = useState<CartItem[]>(loadCart)
   const [customerAccount, setCustomerAccount] = useState<CustomerAccount>(() => customerSession ? loadCustomerAccount() : emptyCustomerAccount)
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(() => customerSession ? loadCustomerOrders() : [])
   const [customerQuoteHistoryResult, setCustomerQuoteHistoryResult] = useState<{
@@ -153,6 +161,8 @@ function App() {
     receivingLocationId: '',
     notes: '',
   })
+
+  useEffect(() => saveCart(cart), [cart])
 
   useLayoutEffect(() => {
     if (!passwordRecovery) return
@@ -313,6 +323,7 @@ function App() {
         billingProfileId: current.billingProfileId || result.record.account.billingProfiles[0]?.id || '',
         receivingLocationId: current.receivingLocationId || result.record.account.receivingLocations[0]?.id || '',
       }))
+      if (returningToCart) navigate('/cart', { replace: true })
     } catch (error) {
       setCustomerLoginError(error instanceof Error ? error.message : 'Sign-in failed. Please try again.')
     } finally {
@@ -358,6 +369,7 @@ function App() {
         company: result.record.account.companyName,
         email: result.record.account.email,
       }))
+      if (returningToCart) navigate('/cart', { replace: true })
     } catch (error) {
       setCustomerLoginError(error instanceof Error ? error.message : 'Account creation failed. Please try again.')
     } finally {
@@ -412,6 +424,8 @@ function App() {
     setCustomerOrders([])
     setCustomerQuoteHistoryResult(null)
     setQuoteRequestNumber('')
+    setQuoteRequestReady(false)
+    setCart([])
     setCustomerLastSyncedAt('')
     setCustomerSyncStatus('offline')
     setCustomerLoginError('')
@@ -440,12 +454,14 @@ function App() {
 
   const totalCases = cartDetails.reduce((total, item) => total + item.cases, 0)
 
-  const addToCart = (productId: string, cases: number, size?: string, configuration?: CartConfiguration) => {
+  const addToCart = (productId: string, cases: number, size?: string, configuration?: CartConfiguration, editLineId?: string) => {
     setQuoteRequestReady(false)
     setQuoteRequestNumber('')
     setQuoteRequestError('')
     const newLineId = crypto.randomUUID()
-    setCart((current) => addConfiguredCartItem(current, productId, cases, size, configuration, newLineId))
+    setCart((current) => editLineId
+      ? replaceConfiguredCartLine(current, editLineId, productId, cases, size, configuration)
+      : addConfiguredCartItem(current, productId, cases, size, configuration, newLineId))
   }
 
   const changeCartQuantity = (lineId: string, delta: number) => {
@@ -470,7 +486,10 @@ function App() {
   }
 
   const syncCustomerRecord = async (nextAccount: CustomerAccount, nextOrders: CustomerOrder[]) => {
-    if (!customerSession) return
+    if (!customerSession) {
+      setCustomerSyncStatus('offline')
+      throw new Error('Your customer session has expired. Please sign in again.')
+    }
     setCustomerSyncStatus('saving')
     try {
       const record = await saveCustomerAccountSync(nextAccount, nextOrders, customerSyncRevisionRef.current, customerSession.token)
@@ -481,9 +500,10 @@ function App() {
       saveCustomerOrders(record.orders)
       setCustomerLastSyncedAt(record.updatedAt)
       setCustomerSyncStatus('saved')
-      window.setTimeout(() => setCustomerSyncStatus('connected'), 1800)
-    } catch {
+      window.setTimeout(() => setCustomerSyncStatus((status) => status === 'saved' ? 'connected' : status), 1800)
+    } catch (error) {
       setCustomerSyncStatus('offline')
+      throw error
     }
   }
 
@@ -530,6 +550,10 @@ function App() {
       setQuoteRequestError('Choose a specific base or lid for each entrée item. Remove the unconfigured line and add the exact component from its product page.')
       return
     }
+    if (cartDetails.some((item) => artworkNeedsReattachment(item.artworkName, item.artworkFile))) {
+      setQuoteRequestError('Reattach the selected artwork files before submitting your quote request.')
+      return
+    }
 
     const billingProfile = customerAccount.billingProfiles.find((profile) => profile.id === buyer.billingProfileId)
     const receivingLocation = customerAccount.receivingLocations.find((location) => location.id === buyer.receivingLocationId)
@@ -546,9 +570,11 @@ function App() {
         purchaseOrder: buyer.purchaseOrder,
         notes: buyer.notes,
         lines: cartDetails.map(buildQuoteRequestLine),
+        artworkFiles: cartDetails.flatMap((item, lineIndex) => item.artworkFile ? [{ lineIndex, file: item.artworkFile }] : []),
       })
       setQuoteRequestNumber(result.requestNumber)
       setQuoteRequestReady(true)
+      setCart([])
       setQuoteHistoryRefresh((current) => current + 1)
     } catch (error) {
       setQuoteRequestError(error instanceof Error ? error.message : 'Unable to submit this quote request.')
@@ -760,7 +786,7 @@ function App() {
               <ProductDetailPage
                 products={allProducts}
                 cart={cart}
-                onAdd={(productId, cases, size, configuration) => addToCart(productId, cases, size, configuration)}
+                onAdd={(productId, cases, size, configuration, editLineId) => addToCart(productId, cases, size, configuration, editLineId)}
                 onRequestSample={(itemNumber) => setContactRequest((current) => ({
                   ...current,
                   need: 'sample',
@@ -797,7 +823,7 @@ function App() {
           <Route
             path="/account"
             element={
-              customerSession ? (
+              customerSession && returningToCart ? <Navigate to="/cart" replace /> : customerSession ? (
                 <CustomerAccountPage
                   account={customerAccount}
                   orders={customerOrders}
@@ -988,13 +1014,11 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
   const [inkColors, setInkColors] = useState(defaultInkColors)
   const [artworkName, setArtworkName] = useState('')
   const [artworkPreview, setArtworkPreview] = useState<string | null>(null)
+  const [artworkFile, setArtworkFile] = useState<File | undefined>()
+  const [artworkError, setArtworkError] = useState('')
   const [artworkAdjustment, setArtworkAdjustment] = useState<ArtworkAdjustment>(defaultArtworkAdjustment)
   const [dragStart, setDragStart] = useState<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null)
   const [added, setAdded] = useState(false)
-
-  useEffect(() => () => {
-    if (artworkPreview) URL.revokeObjectURL(artworkPreview)
-  }, [artworkPreview])
 
   if (!selectedProduct) {
     return (
@@ -1028,8 +1052,22 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
 
   const uploadArtwork = (file: File | undefined) => {
     if (!file) return
-    setArtworkPreview(URL.createObjectURL(file))
+    try {
+      const { extension } = artworkFileDetails(file)
+      if (!['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extension)) {
+        throw new Error('Choose a PNG, JPG, WebP, or SVG file for the cup preview.')
+      }
+    } catch (error) {
+      setArtworkError(error instanceof Error ? error.message : 'Choose a supported artwork file.')
+      return
+    }
+    setArtworkError('')
+    setArtworkFile(file)
     setArtworkName(file.name)
+    const reader = new FileReader()
+    reader.onload = () => setArtworkPreview(typeof reader.result === 'string' ? reader.result : null)
+    reader.onerror = () => setArtworkError('This artwork could not be previewed. Try another file.')
+    reader.readAsDataURL(file)
     setArtworkAdjustment(defaultArtworkAdjustment)
     setAdded(false)
   }
@@ -1126,6 +1164,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
                 onChange={(event) => uploadArtwork(event.target.files?.[0])}
               />
             </label>
+            {artworkError ? <p className="cup-artwork-error" role="alert">{artworkError}</p> : null}
 
             <div className="custom-artwork-controls">
               <label>
@@ -1228,6 +1267,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
                 inkColors: inkColors.slice(0, activePrintColors),
                 artworkName: artworkName || 'Artwork to follow',
                 artworkPreview: artworkPreview || undefined,
+                artworkFile,
                 artworkPosition: artworkAdjustment,
               })
               setAdded(true)
@@ -1386,13 +1426,19 @@ type ProductCollectionPageProps = {
 }
 
 function ProductCollectionPage({ division, products }: ProductCollectionPageProps) {
-  const [category, setCategory] = useState('All')
-  const [query, setQuery] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
   const title = division === 'paper' ? 'Paper packaging' : 'Plastic packaging'
   const description = division === 'paper'
     ? 'Cups, cartons, trays, pizza packaging, and foodservice accessories in one organized collection.'
     : 'Cups, lids, food containers, produce trays, party formats, and beverage bottles.'
   const categories = ['All', ...Array.from(new Set(products.map((product) => product.category)))]
+  const { category, query } = readCollectionFilters(searchParams, categories)
+  const setFilter = (key: 'category' | 'q', value: string) => {
+    setSearchParams((current) => updateCollectionFilter(current, key, value), {
+      replace: true,
+      preventScrollReset: true,
+    })
+  }
   const filteredProducts = products.filter((product) => {
     const matchesCategory = category === 'All' || product.category === category
     return matchesCategory && productMatchesSearch(product, query)
@@ -1400,12 +1446,6 @@ function ProductCollectionPage({ division, products }: ProductCollectionPageProp
 
   return (
     <section className={`product-collection-page page-section ${division}`}>
-      <div className="product-breadcrumb">
-        <Link to="/products"><ArrowLeft size={16} /> All products</Link>
-        <span>/</span>
-        <span>{title}</span>
-      </div>
-
       <header className="product-collection-hero">
         <div className="product-collection-hero-copy">
           <p className="eyebrow">{division} collection</p>
@@ -1417,16 +1457,29 @@ function ProductCollectionPage({ division, products }: ProductCollectionPageProp
       </header>
 
       <div className="product-collection-tools">
-        <div className="product-collection-categories" aria-label={`${title} categories`}>
+        <fieldset className="product-collection-categories" aria-label={`${title} categories`}>
           {categories.map((item) => (
-            <button key={item} type="button" className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => setCategory(item)}>
-              {item === 'All' ? 'All products' : item}
-            </button>
+            <label key={item} className={category === item ? 'active' : ''}>
+              <input
+                type="radio"
+                name={`${division}-category`}
+                value={item}
+                checked={category === item}
+                onChange={() => setFilter('category', item)}
+              />
+              <span>{item === 'All' ? 'All products' : item}</span>
+            </label>
           ))}
-        </div>
+        </fieldset>
         <label className="search-box">
           <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${division} products`} />
+          <input
+            type="search"
+            aria-label={`Search ${division} products`}
+            value={query}
+            onChange={(event) => setFilter('q', event.target.value)}
+            placeholder={`Search ${division} products`}
+          />
         </label>
       </div>
 
@@ -1562,14 +1615,6 @@ function IndustryDetailPage() {
 
   return (
     <section className="industry-detail-page page-section">
-      <div className="product-breadcrumb">
-        <Link to="/industries">
-          <ArrowLeft size={16} /> All industries
-        </Link>
-        <span>/</span>
-        <span>{industry.title}</span>
-      </div>
-
       <div className="industry-detail-hero">
         <div>
           <span className="industry-hero-icon"><Icon size={28} /></span>
@@ -1661,7 +1706,7 @@ function IndustryDetailPage() {
 type ProductDetailPageProps = {
   products: Product[]
   cart: CartItem[]
-  onAdd: (productId: string, cases: number, size: string, configuration?: CartConfiguration) => void
+  onAdd: (productId: string, cases: number, size: string, configuration?: CartConfiguration, editLineId?: string) => void
   onRequestSample: (itemNumber: string) => void
 }
 
@@ -1678,18 +1723,20 @@ function ProductDetailPage({ products, cart, onAdd, onRequestSample }: ProductDe
   const cartItem = requestedLineId
     ? cart.find((item) => item.lineId === requestedLineId && item.productId === product.id)
     : cart.find((item) => item.productId === product.id)
-  return <ProductDetailContent key={`${product.id}:${requestedLineId}`} product={product} products={products} cartItem={cartItem} onAdd={onAdd} onRequestSample={onRequestSample} />
+  const editingLineId = requestedLineId && cartItem ? requestedLineId : undefined
+  return <ProductDetailContent key={`${product.id}:${requestedLineId}`} product={product} products={products} cartItem={cartItem} editingLineId={editingLineId} onAdd={onAdd} onRequestSample={onRequestSample} />
 }
 
 type ProductDetailContentProps = {
   product: Product
   products: Product[]
   cartItem?: CartItem
+  editingLineId?: string
   onAdd: ProductDetailPageProps['onAdd']
   onRequestSample: ProductDetailPageProps['onRequestSample']
 }
 
-function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSample }: ProductDetailContentProps) {
+function ProductDetailContent({ product, products, cartItem, editingLineId, onAdd, onRequestSample }: ProductDetailContentProps) {
   const isEntreeFamily = product.id === 'plastic-entree-containers'
   const optionGroups = product.optionGroups || [{ label: 'Size or format', options: product.sizes }]
   const firstOption = optionGroups.length > 1
@@ -1702,10 +1749,11 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
   const [selectedSize, setSelectedSize] = useState(restoredSize || firstOption)
   const [selectedMaterialChoice, setSelectedMaterialChoice] = useState(cartItem?.material || product.materials?.[0] || product.material)
   const [selectedComponent, setSelectedComponent] = useState<'Base' | 'Lid'>(cartItem?.component || 'Base')
-  const [selectedQuantity, setSelectedQuantity] = useState(1)
+  const [selectedQuantity, setSelectedQuantity] = useState(editingLineId ? cartItem?.cases || 1 : 1)
   const [printColors, setPrintColors] = useState<PrintColorCount>(cartItem?.printColors || 0)
   const [artworkName, setArtworkName] = useState(cartItem?.artworkName || '')
   const [artworkPreview, setArtworkPreview] = useState(cartItem?.artworkPreview || '')
+  const [artworkFile, setArtworkFile] = useState<File | undefined>(cartItem?.artworkFile)
   const [artworkError, setArtworkError] = useState('')
   const [mobileStep, setMobileStep] = useState(1)
   const printableProduct = Boolean(product.maxPrintColors)
@@ -1713,6 +1761,9 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
   const specDownloads = product.specDownloadsBySize?.[selectedSize] || []
   const selectedComponentSpec = isEntreeFamily ? specDownloads.find((resource) => resource.component === selectedComponent) : undefined
   const selectedMaterial = selectedComponentSpec?.material || selectedMaterialChoice
+  const cartActionLabel = editingLineId
+    ? 'Update cart item'
+    : selectedComponentSpec ? `Add ${selectedComponentSpec.component.toLowerCase()} to quote` : 'Add to quote'
   const relatedPool = product.division
     ? products.filter((item) => item.division === product.division)
     : products
@@ -1722,16 +1773,20 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
 
   const selectArtwork = (file: File | undefined) => {
     if (!file) return
-    if (file.size > 10 * 1024 * 1024) {
-      setArtworkError('Artwork files must be 10 MB or smaller for this preview.')
+    let contentType: string
+    try {
+      contentType = artworkFileDetails(file).contentType
+    } catch (error) {
+      setArtworkError(error instanceof Error ? error.message : 'Choose a supported artwork file.')
       return
     }
 
     setArtworkError('')
+    setArtworkFile(file)
     setArtworkName(file.name)
     if (printColors === 0) setPrintColors(1)
 
-    if (!file.type.startsWith('image/')) {
+    if (!contentType.startsWith('image/')) {
       setArtworkPreview('')
       return
     }
@@ -1744,27 +1799,23 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
 
   const addConfiguredProduct = () => {
     if (isEntreeFamily && !selectedComponentSpec) return
+    const includeArtwork = printableProduct && printColors > 0
     onAdd(product.id, selectedQuantity, selectedSize, {
       material: selectedMaterial,
       component: selectedComponentSpec?.component,
       itemNumber: selectedComponentSpec?.itemNumber,
       productName: selectedComponentSpec?.productName,
       printColors: printableProduct ? printColors : 0,
-      artworkName: printableProduct ? artworkName : undefined,
-      artworkPreview: printableProduct ? artworkPreview : undefined,
-    })
+      inkColors: editingLineId && printableProduct && printColors > 0 && printColors === cartItem?.printColors ? cartItem.inkColors : undefined,
+      artworkName: includeArtwork ? artworkName : undefined,
+      artworkPreview: includeArtwork ? artworkPreview : undefined,
+      artworkFile: includeArtwork ? artworkFile : undefined,
+      artworkPosition: editingLineId && printableProduct && printColors > 0 ? cartItem?.artworkPosition : undefined,
+    }, editingLineId)
   }
 
   return (
     <section className="product-detail-page page-section">
-      <div className="product-breadcrumb">
-        <Link to={product.division ? `/products/${product.division}` : '/products'}>
-          <ArrowLeft size={16} /> Back to {product.division || 'all'} products
-        </Link>
-        <span>/</span>
-        <span>{product.category}</span>
-      </div>
-
       <header className="product-detail-mobile-heading">
         <p className="eyebrow">{spec ? `Item ${spec.itemNumber}` : `${product.category} packaging`}</p>
         <h1>{product.name}</h1>
@@ -1790,7 +1841,7 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
           </div>
 
           <div className="product-configurator-intro">
-            <p className="eyebrow">Configure for a quote</p>
+            <p className="eyebrow">{editingLineId ? 'Edit cart item' : 'Configure for a quote'}</p>
             <h2>Choose what you need.</h2>
             <p>Make each selection below. NexGen will confirm availability, freight, minimums, and final pricing.</p>
           </div>
@@ -1986,7 +2037,7 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
               disabled={isEntreeFamily && !selectedComponentSpec}
             >
               <PackageOpen size={18} />
-              {selectedComponentSpec ? `Add ${selectedComponentSpec.component.toLowerCase()} to quote` : 'Add to quote'}
+              {cartActionLabel}
               <ArrowRight size={18} />
             </button>
             {cartItem ? <Link className="product-view-cart" to="/cart">View cart <ArrowRight size={17} /></Link> : null}
@@ -2048,7 +2099,7 @@ function ProductDetailContent({ product, products, cartItem, onAdd, onRequestSam
 
           <div className="product-quote-summary-actions">
             <button className="primary-button" type="button" onClick={addConfiguredProduct} disabled={isEntreeFamily && !selectedComponentSpec}>
-              {selectedComponentSpec ? `Add ${selectedComponentSpec.component.toLowerCase()} to quote` : 'Add to quote'} <ArrowRight size={17} />
+              {cartActionLabel} <ArrowRight size={17} />
             </button>
             {spec ? <a href={spec.specSheetUrl} download><Download size={15} /> Download specification</a> : null}
             {specDownloads.map((resource) => (
