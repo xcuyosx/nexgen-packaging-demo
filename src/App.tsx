@@ -43,7 +43,7 @@ import { productMatchesSearch } from './productSearch'
 import { readCollectionFilters, updateCollectionFilter } from './collectionFilters'
 import { artworkFileDetails, artworkNeedsReattachment } from './artworkUpload'
 import { TradeShowCalendar } from './TradeShowCalendar'
-import { CustomerAccountPage, CustomerOrderDetailPage } from './CustomerAccountPage'
+import { CustomerAccountPage } from './CustomerAccountPage'
 import { CustomerLoginPage } from './CustomerLoginPage'
 import { CartPage } from './CartPage'
 import {
@@ -67,7 +67,7 @@ import {
   submitCustomerQuoteRequest,
   updateCustomerPassword,
 } from './customerAccount'
-import type { CustomerAccount, CustomerOrder, CustomerOrderLine, CustomerQuoteHistoryEntry, CustomerSession } from './customerAccount'
+import type { CustomerAccount, CustomerOrder, CustomerQuoteHistoryEntry, CustomerSession } from './customerAccount'
 import { addConfiguredCartItem, buildQuoteRequestLine, changeCartLineCases, removeCartLine, replaceConfiguredCartLine } from './storefrontCart'
 import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
 import { loadCart, saveCart } from './cartPersistence'
@@ -487,14 +487,14 @@ function App() {
     setBuyer((current) => ({ ...current, [field]: value }))
   }
 
-  const syncCustomerRecord = async (nextAccount: CustomerAccount, nextOrders: CustomerOrder[]) => {
+  const syncCustomerRecord = async (nextAccount: CustomerAccount, nextOrders: CustomerOrder[], originalAccount: CustomerAccount) => {
     if (!customerSession) {
       setCustomerSyncStatus('offline')
       throw new Error('Your customer session has expired. Please sign in again.')
     }
     setCustomerSyncStatus('saving')
     try {
-      const record = await saveCustomerAccountSync(nextAccount, nextOrders, customerSyncRevisionRef.current, customerSession.token)
+      const record = await saveCustomerAccountSync(nextAccount, nextOrders, customerSyncRevisionRef.current, customerSession.token, originalAccount)
       customerSyncRevisionRef.current = record.revision
       setCustomerAccount(record.account)
       setCustomerOrders(record.orders)
@@ -509,32 +509,9 @@ function App() {
     }
   }
 
-  const updateCustomerAccount = async (nextAccount: CustomerAccount) => {
-    setCustomerAccount(nextAccount)
-    saveCustomerAccount(nextAccount)
-    await syncCustomerRecord(nextAccount, customerOrders)
-  }
-
-  const reorderFromHistory = (items: CustomerOrderLine[]) => {
-    setQuoteRequestReady(false)
-    setQuoteRequestNumber('')
-    setQuoteRequestError('')
-    const newLineIds = items.map(() => crypto.randomUUID())
-    setCart((current) => items.reduce((next, item, index) => {
-      const product = productMap.get(item.productId)
-      if (!product) return next
-      const component = product.id === 'plastic-entree-containers'
-        ? (item.productName.includes(' Base') ? 'Base' : item.productName.includes(' Lid') ? 'Lid' : undefined)
-        : undefined
-      const entreeSpec = component && product.specDownloadsBySize?.[item.size]?.find((spec) => spec.component === component)
-      return addConfiguredCartItem(next, item.productId, item.cases, item.size, {
-        component,
-        itemNumber: entreeSpec?.itemNumber || (component ? item.sku : undefined),
-        productName: entreeSpec?.productName || (component ? item.productName : undefined),
-        material: entreeSpec?.material,
-        printColors: item.customPrint ? 1 : 0,
-      }, newLineIds[index])
-    }, current))
+  const updateCustomerAccount = async (nextAccount: CustomerAccount, originalAccount: CustomerAccount) => {
+    // Publish shared state only after success; the form retains unconfirmed edits.
+    await syncCustomerRecord(nextAccount, customerOrders, originalAccount)
   }
 
   const sendQuoteRequest = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -826,7 +803,6 @@ function App() {
               customerSession && returningToCart ? <Navigate to="/cart" replace /> : customerSession ? (
                 <CustomerAccountPage
                   account={customerAccount}
-                  orders={customerOrders}
                   quoteRequests={customerQuoteHistory}
                   quoteRequestsStatus={customerQuoteHistoryStatus}
                   quoteRequestsError={customerQuoteHistoryError}
@@ -853,32 +829,7 @@ function App() {
               )
             }
           />
-          <Route
-            path="/account/orders/:orderId"
-            element={
-              customerSession ? (
-                <CustomerOrderDetailPage
-                  account={customerAccount}
-                  orders={customerOrders}
-                  onReorder={reorderFromHistory}
-                />
-              ) : (
-                <CustomerLoginPage
-                  logoUrl={nexgenLogo}
-                  loading={customerLoginLoading}
-                  error={customerLoginError}
-                  message={customerLoginMessage}
-                  recoveryToken={passwordRecovery?.token || ''}
-                  recoveryError={passwordRecovery?.error || ''}
-                  onLogin={signInCustomer}
-                  onRegister={registerCustomer}
-                  onResetRequest={requestPasswordReset}
-                  onPasswordUpdate={changePassword}
-                  onClearFeedback={clearCustomerLoginFeedback}
-                />
-              )
-            }
-          />
+          <Route path="/account/orders/*" element={<Navigate to="/account" replace />} />
           <Route path="/portal" element={<Navigate to="/account" replace />} />
 
           <Route

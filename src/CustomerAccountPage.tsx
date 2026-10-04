@@ -1,44 +1,37 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   Building2,
-  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
-  CreditCard,
   LogOut,
+  Mail,
   MapPin,
-  PackageCheck,
   Pencil,
   Plus,
   ReceiptText,
-  ShieldCheck,
   Trash2,
-  Truck,
   UserRound,
 } from 'lucide-react'
 import type {
   BillingPreference,
   CustomerAccount,
-  CustomerOrder,
-  CustomerOrderLine,
   CustomerQuoteHistoryEntry,
 } from './customerAccount'
 import { createCustomerRecordId } from './customerAccount'
 
-type AccountView = 'overview' | 'profile' | 'quotes' | 'orders' | 'billing' | 'locations'
+type AccountView = 'overview' | 'profile' | 'quotes' | 'billing' | 'locations'
 
 type CustomerAccountPageProps = {
   account: CustomerAccount
-  orders: CustomerOrder[]
   quoteRequests: CustomerQuoteHistoryEntry[]
   quoteRequestsStatus: 'loading' | 'ready' | 'error'
   quoteRequestsError: string
   onRefreshQuoteRequests: () => void
-  onSave: (account: CustomerAccount) => void | Promise<void>
+  onSave: (account: CustomerAccount, original: CustomerAccount) => void | Promise<void>
   onSignOut: () => void | Promise<void>
   syncStatus: 'loading' | 'connected' | 'saving' | 'saved' | 'offline'
   lastSyncedAt: string
@@ -79,7 +72,7 @@ const emptyLocation = {
 
 function accountViewFromSearch(search: string): AccountView {
   const view = new URLSearchParams(search).get('view')
-  return view === 'quotes' || view === 'orders' || view === 'profile' || view === 'billing' || view === 'locations'
+  return view === 'quotes' || view === 'profile' || view === 'billing' || view === 'locations'
     ? view : 'overview'
 }
 
@@ -118,12 +111,12 @@ function AccountDetailHeader({ title, description, onBack, action }: AccountDeta
   )
 }
 
-export function CustomerAccountPage({ account, orders, quoteRequests, quoteRequestsStatus, quoteRequestsError, onRefreshQuoteRequests, onSave, onSignOut, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
+export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatus, quoteRequestsError, onRefreshQuoteRequests, onSave, onSignOut, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const activeView = accountViewFromSearch(location.search)
   const setActiveView = (view: AccountView) => navigate(view === 'overview' ? '/account' : `/account?view=${view}`)
-  const [draft, setDraft] = useState<CustomerAccount | null>(null)
+  const [draft, setDraft] = useState<{ value: CustomerAccount; original: CustomerAccount } | null>(null)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -137,10 +130,10 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
     window.scrollTo({ top: 0 })
   }, [activeView])
 
-  const currentAccount = draft ?? account
+  const currentAccount = draft?.value ?? account
   const updateDraft = (updater: (current: CustomerAccount) => CustomerAccount) => {
     setSaved(false)
-    setDraft((current) => updater(current ?? structuredClone(account)))
+    setDraft((current) => ({ original: current?.original ?? structuredClone(account), value: updater(current?.value ?? structuredClone(account)) }))
   }
 
   const accountName = currentAccount.companyName || 'Your NexGen account'
@@ -155,7 +148,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
     setSaved(false)
     setSaveError('')
     try {
-      await onSave(currentAccount)
+      await onSave(currentAccount, draft?.original ?? account)
       setDraft(null)
       setSaved(true)
       window.setTimeout(() => setSaved(false), 1800)
@@ -169,6 +162,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
   const saveErrorNotice = saveError ? (
     <p className="account-save-error" role="alert">
       We couldn’t confirm this update was saved to your NexGen account. Your edits remain here so you can retry. {saveError}
+      {' '}<button type="button" onClick={() => window.location.reload()}>Reload and discard these edits</button>
     </p>
   ) : null
 
@@ -220,16 +214,6 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
     setShowLocationForm(true)
   }
 
-  const requestPaymentSetup = () => {
-    const body = [
-      `Company: ${currentAccount.companyName || 'Not provided'}`,
-      `Account email: ${currentAccount.email || 'Not provided'}`,
-      '',
-      'Please send a secure link to add a payment method to this NexGen account.',
-    ].join('\n')
-    window.open(`mailto:orders@nexgenpac.com?subject=${encodeURIComponent('Secure payment method setup')}&body=${encodeURIComponent(body)}`, '_self')
-  }
-
   const returnToAccount = () => setActiveView('overview')
 
   return (
@@ -241,14 +225,14 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
               <div>
                 <p className="eyebrow">Customer account</p>
                 <h1>{accountName}</h1>
-                <p>Quote requests, orders, payments, billing, and delivery information in one place.</p>
+                <p>Track quote requests and keep your company, billing, and delivery details together.</p>
               </div>
               <div className="account-home-actions">
                 <button className="account-sign-out" type="button" onClick={() => void onSignOut()}>
                   <LogOut size={16} /> Sign out
                 </button>
                 <Link className="account-shop-link" to="/products">
-                  Shop <ArrowRight size={17} />
+                  Request a quote <ArrowRight size={17} />
                 </Link>
               </div>
             </header>
@@ -256,39 +240,38 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
             <section className="account-identity-card" aria-label="Account identity">
               <div className="account-avatar" aria-hidden="true">{initials}</div>
               <div>
-                <strong>{currentAccount.contactName || 'Add your name'}</strong>
-                <span>{currentAccount.email || 'Add your account email'}</span>
+                <strong>{currentAccount.contactName || 'Your company contact'}</strong>
+                <span>{currentAccount.email || 'Your sign-in email'}</span>
                 <small className={`account-sync-line ${syncStatus}`}>
                   <Check size={13} aria-hidden="true" />
                   {accountSyncLabel(syncStatus, lastSyncedAt)}
                 </small>
               </div>
-              <button type="button" onClick={() => setActiveView('profile')}>Edit</button>
+              <button type="button" onClick={() => setActiveView('profile')}>View details</button>
             </section>
 
             <div className="account-home-grid">
-              <section className="account-group" aria-labelledby="account-purchases-heading">
-                <h2 id="account-purchases-heading">Requests & purchases</h2>
+              <section className="account-group" aria-labelledby="account-requests-heading">
+                <h2 id="account-requests-heading">Quotes & support</h2>
                 <AccountMenuRow
                   icon={<ReceiptText size={21} />}
-                  title="Quote requests"
+                  title="My quote requests"
                   description={quoteRequests.length ? `${quoteRequests.length} recent request${quoteRequests.length === 1 ? '' : 's'}` : 'Track requests for pricing'}
                   onClick={() => setActiveView('quotes')}
                 />
-                <AccountMenuRow
-                  icon={<PackageCheck size={21} />}
-                  title="Orders"
-                  description={orders.length ? `${orders.length} order${orders.length === 1 ? '' : 's'} in your account` : 'Review your order history'}
-                  onClick={() => setActiveView('orders')}
-                />
+                <a className="account-menu-row" href="mailto:orders@nexgenpac.com">
+                  <span className="account-menu-icon"><Mail size={21} /></span>
+                  <span><strong>Contact NexGen</strong><small>Questions about a quote or your account</small></span>
+                  <ArrowRight size={20} aria-hidden="true" />
+                </a>
               </section>
 
               <section className="account-group" aria-labelledby="account-settings-heading">
                 <h2 id="account-settings-heading">Account settings</h2>
                 <AccountMenuRow
-                  icon={<CreditCard size={21} />}
-                  title="Payment & billing"
-                  description={currentAccount.billingProfiles.length ? `${currentAccount.billingProfiles.length} billing profile${currentAccount.billingProfiles.length === 1 ? '' : 's'}` : 'Payment methods, invoices, and purchase orders'}
+                  icon={<ReceiptText size={21} />}
+                  title="Billing preferences"
+                  description={currentAccount.billingProfiles.length ? `${currentAccount.billingProfiles.length} billing profile${currentAccount.billingProfiles.length === 1 ? '' : 's'}` : 'Billing contacts and purchasing preferences'}
                   onClick={() => setActiveView('billing')}
                 />
                 <AccountMenuRow
@@ -299,7 +282,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
                 />
                 <AccountMenuRow
                   icon={<UserRound size={21} />}
-                  title="Account details"
+                  title="Company details"
                   description={currentAccount.companyName ? currentAccount.companyName : 'Company and contact information'}
                   onClick={() => setActiveView('profile')}
                 />
@@ -311,65 +294,20 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
         {activeView === 'profile' && (
           <>
             <AccountDetailHeader
-              title="Account details"
-              description="Keep your company and primary contact information current."
+              title="Company details"
+              description="Company and primary contact details are maintained by the NexGen team."
               onBack={returnToAccount}
-              action={
-                <button className="account-primary-action" type="submit" form="account-profile-form" disabled={saving}>
-                  {saved ? <Check size={17} /> : null}{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
-                </button>
-              }
+              action={<a className="account-primary-action" href="mailto:orders@nexgenpac.com?subject=Customer%20account%20correction">Request a correction</a>}
             />
             {saveErrorNotice}
             <section className="account-content-card">
-              <form id="account-profile-form" className="account-form" onSubmit={(event) => { event.preventDefault(); void saveAccount() }}>
-                <label>Company name<input value={currentAccount.companyName} autoComplete="organization" onChange={(event) => updateDraft((current) => ({ ...current, companyName: event.target.value }))} /></label>
-                <label>Primary contact<input value={currentAccount.contactName} autoComplete="name" onChange={(event) => updateDraft((current) => ({ ...current, contactName: event.target.value }))} /></label>
-                <label>Sign-in email<input value={currentAccount.email} type="email" autoComplete="email" readOnly aria-readonly="true" /></label>
-                <label>Phone<input value={currentAccount.phone} type="tel" autoComplete="tel" onChange={(event) => updateDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
-              </form>
-            </section>
-          </>
-        )}
-
-        {activeView === 'orders' && (
-          <>
-            <AccountDetailHeader
-              title="Orders"
-              description="Select an order to view its products, shipping, billing, and status."
-              onBack={returnToAccount}
-              action={<Link className="account-primary-action" to="/products"><Plus size={17} /> New quote request</Link>}
-            />
-            <section className="account-content-card">
-              {orders.length === 0 ? (
-                <div className="account-empty-state">
-                  <PackageCheck size={30} />
-                  <strong>No orders available</strong>
-                  <span>Your order history appears here when available. To request pricing, start a quote request.</span>
-                  <Link to="/products">Shop products <ArrowRight size={16} /></Link>
-                </div>
-              ) : (
-                <div className="account-order-list">
-                  {orders.map((order) => (
-                    <button
-                      className="account-order-summary"
-                      type="button"
-                      key={order.id}
-                      aria-label={`View order ${order.id} from ${new Date(order.createdAt).toLocaleDateString('en-US')} for ${formatMoney(order.subtotal)}`}
-                      onClick={() => navigate(`/account/orders/${encodeURIComponent(order.id)}`)}
-                    >
-                      <div>
-                        <strong>{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>
-                        <small>{order.id}</small>
-                      </div>
-                      <span className="account-order-summary-total">
-                        <strong>{formatMoney(order.subtotal)}</strong>
-                        <ChevronRight size={20} aria-hidden="true" />
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="account-form">
+                <label>Company name<input value={account.companyName} autoComplete="organization" readOnly aria-readonly="true" /></label>
+                <label>Primary contact<input value={account.contactName} autoComplete="name" readOnly aria-readonly="true" /></label>
+                <label>Your sign-in email<input value={account.email} type="email" autoComplete="email" readOnly aria-readonly="true" /></label>
+                <label>Primary contact phone<input value={account.phone} type="tel" autoComplete="tel" readOnly aria-readonly="true" /></label>
+              </div>
+              <p>Your sign-in email identifies your login and may differ from the company’s primary contact. Contact NexGen if either needs updating.</p>
             </section>
           </>
         )}
@@ -431,8 +369,8 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
         {activeView === 'billing' && (
           <>
             <AccountDetailHeader
-              title="Payment & billing"
-              description="Manage payment methods, invoice preferences, and purchasing requirements."
+              title="Billing preferences"
+              description="Save billing contacts and purchasing preferences for your quote requests."
               onBack={returnToAccount}
               action={<button className="account-primary-action" type="button" disabled={saving} onClick={() => void saveAccount()}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}</button>}
             />
@@ -440,26 +378,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
             <div className="account-detail-stack">
               <section className="account-content-card">
                 <div className="account-section-heading">
-                  <div><h2>Payment methods</h2><p>Payment information is handled through a secure, tokenized payment link.</p></div>
-                  <button type="button" onClick={requestPaymentSetup}><Plus size={17} /> Add</button>
-                </div>
-                {currentAccount.paymentMethods.length ? (
-                  <div className="account-record-list">
-                    {currentAccount.paymentMethods.map((method) => (
-                      <div className="account-record-row" key={method.id}>
-                        <span className="account-menu-icon"><CreditCard size={20} /></span>
-                        <div><strong>{method.brand} •••• {method.lastFour}</strong><small>Expires {method.expires}</small></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="account-empty-row"><ShieldCheck size={21} /><span>No payment method saved</span><button type="button" onClick={requestPaymentSetup}>Add payment method</button></div>
-                )}
-              </section>
-
-              <section className="account-content-card">
-                <div className="account-section-heading">
-                  <div><h2>Billing profiles</h2><p>Use different billing details for divisions, brands, or purchasing programs.</p></div>
+                  <div><h2>Billing profiles</h2><p>Use different billing details for divisions, brands, or purchasing programs. Selecting invoice or net terms is a preference; credit terms require NexGen approval.</p></div>
                   <button type="button" onClick={() => setShowBillingForm((open) => !open)}><Plus size={17} /> Add</button>
                 </div>
 
@@ -542,124 +461,6 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
       </div>
     </section>
   )
-}
-
-type CustomerOrderDetailPageProps = {
-  account: CustomerAccount
-  orders: CustomerOrder[]
-  onReorder: (items: CustomerOrderLine[]) => void
-}
-
-export function CustomerOrderDetailPage({ account, orders, onReorder }: CustomerOrderDetailPageProps) {
-  const { orderId = '' } = useParams()
-  const navigate = useNavigate()
-  const order = orders.find((item) => item.id === decodeURIComponent(orderId))
-
-  if (!order) {
-    return (
-      <section className="account-page page-section">
-        <div className="account-shell">
-          <AccountDetailHeader
-            title="Order not found"
-            description="This order is not available in the current customer account."
-            onBack={() => navigate('/account?view=orders')}
-          />
-          <section className="account-content-card account-empty-state">
-            <PackageCheck size={30} />
-            <strong>We couldn't find that order</strong>
-            <Link to="/account?view=orders">Return to orders</Link>
-          </section>
-        </div>
-      </section>
-    )
-  }
-
-  const billingProfile = account.billingProfiles.find((profile) => profile.label === order.billingProfile)
-  const receivingLocation = account.receivingLocations.find((location) => location.label === order.receivingLocation)
-  const reorder = () => {
-    onReorder(order.items)
-    navigate('/#quote')
-  }
-
-  return (
-    <section className="account-page order-detail-page page-section">
-      <div className="account-shell">
-        <header className="order-detail-header">
-          <button className="account-back-button" type="button" onClick={() => navigate('/account?view=orders')}>
-            <ChevronLeft size={19} /> Orders
-          </button>
-          <div className="order-detail-title-row">
-            <div>
-              <p className="eyebrow">Order details</p>
-              <h1>{order.id}</h1>
-              <span>Placed {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-            </div>
-            <span className="order-detail-status">{order.status}</span>
-          </div>
-        </header>
-
-        <section className="order-detail-overview" aria-label="Order summary">
-          <article>
-            <CalendarDays size={19} aria-hidden="true" />
-            <span>Order date</span>
-            <strong>{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>
-          </article>
-          <article>
-            <ReceiptText size={19} aria-hidden="true" />
-            <span>Order total</span>
-            <strong>{formatMoney(order.subtotal)}</strong>
-          </article>
-          <article>
-            <CreditCard size={19} aria-hidden="true" />
-            <span>Bill to</span>
-            <strong>{billingProfile?.label || order.billingProfile || 'Confirm with NexGen'}</strong>
-            {billingProfile ? <small>{billingProfile.preference} · {billingProfile.billingEmail}</small> : null}
-          </article>
-          <article>
-            <Truck size={19} aria-hidden="true" />
-            <span>Ship to</span>
-            <strong>{receivingLocation?.label || order.receivingLocation || 'Confirm with NexGen'}</strong>
-            {receivingLocation ? <small>{receivingLocation.address}, {receivingLocation.city}, {receivingLocation.state} {receivingLocation.postalCode}</small> : null}
-          </article>
-        </section>
-
-        <section className="account-content-card order-detail-items">
-          <div className="order-detail-section-heading">
-            <div>
-              <p className="eyebrow">Products</p>
-              <h2>{order.items.length} item{order.items.length === 1 ? '' : 's'}</h2>
-            </div>
-          </div>
-
-          <div className="order-detail-item-list">
-            {order.items.map((item, index) => (
-              <article key={`${order.id}-${item.productId}-${item.size}-${index}`}>
-                <span className="account-menu-icon"><PackageCheck size={20} /></span>
-                <div>
-                  <strong>{item.productName}</strong>
-                  <span>{item.sku} · {item.size}</span>
-                  <small>{item.cases} case{item.cases === 1 ? '' : 's'}{item.customPrint ? ' · Custom print' : ''}</small>
-                </div>
-                <strong>{item.lineTotal == null ? 'Price pending' : formatMoney(item.lineTotal)}</strong>
-              </article>
-            ))}
-          </div>
-
-          <div className="order-detail-total">
-            <div>
-              <span>Order total</span>
-              <strong>{formatMoney(order.subtotal)}</strong>
-            </div>
-            <button type="button" onClick={reorder}>Reorder these products</button>
-          </div>
-        </section>
-      </div>
-    </section>
-  )
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value)
 }
 
 function accountSyncLabel(

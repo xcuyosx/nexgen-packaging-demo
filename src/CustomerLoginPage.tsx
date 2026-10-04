@@ -76,7 +76,7 @@ export function CustomerLoginPage({
     'set-password': 'Choose a new password',
   }[mode]
   const description = {
-    signin: checkout ? 'Sign in to finish your quote request.' : 'Access your quotes, orders, and account details.',
+    signin: checkout ? 'Sign in to finish your quote request.' : 'Access your quote requests and company details.',
     register: checkout ? 'Create an account to finish your quote request.' : 'Use your work email to create a NexGen customer account.',
     'request-reset': 'Enter your email and we’ll help you get back in.',
     'set-password': 'Enter a new password for your sign-in.',

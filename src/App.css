@@ -5523,6 +5523,7 @@ main {
 }
 
 .account-menu-row {
+  text-decoration: none;
   width: 100%;
   min-height: 78px;
   padding: 15px 18px;

@@ -1,5 +1,6 @@
 import { classifyCustomerSignupResponse, isExistingAccountAuthError, parseCustomerPasswordRecoveryUrl } from './customerAuthResponse'
 import { submitQuoteAttempt } from './quoteSubmission'
+import { saveCustomerPreferences } from './customerAccountPreferences'
 
 export type BillingPreference = 'Credit card' | 'Invoice / net terms' | 'Purchase order'
 
@@ -32,6 +33,7 @@ export type PaymentMethodSummary = {
 }
 
 export type CustomerAccount = {
+  syncRevision?: number
   companyName: string
   contactName: string
   email: string
@@ -457,19 +459,15 @@ export async function logoutCustomerAccount(token: string): Promise<void> {
 export async function fetchCustomerAccountSync(token: string, signal?: AbortSignal): Promise<CustomerAccountSyncRecord> {
   if (useSupabaseCustomerAccounts) {
     const userId = userIdFromAccessToken(token)
-    const [accountResponse, orderResponse] = await Promise.all([
-      supabaseRequest(`customer_accounts?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`, token, { signal }),
-      supabaseRequest(`customer_orders?user_id=eq.${encodeURIComponent(userId)}&select=*&order=order_date.desc`, token, { signal }),
-    ])
+    const accountResponse = await supabaseRequest(`customer_accounts?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`, token, { signal })
     const accountRows = await readJson(accountResponse)
-    const orderRows = await readJson(orderResponse)
-    if (accountResponse.status === 401 || orderResponse.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
+    if (accountResponse.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
     if (!accountResponse.ok) throw new Error(apiErrorMessage(accountRows, 'Unable to load your customer account.'))
-    if (!orderResponse.ok) throw new Error(apiErrorMessage(orderRows, 'Unable to load your order history.'))
     if (!Array.isArray(accountRows) || !accountRows[0]) {
       throw new Error('This sign-in is not linked to a customer account. Use a separate email for a customer account or contact NexGen support.')
     }
-    return normalizeSupabaseAccountRecord(accountRows[0], Array.isArray(orderRows) ? orderRows : [])
+    // Quote-only portal: order availability must not block access to the account.
+    return normalizeSupabaseAccountRecord(accountRows[0], [])
   }
 
   if (!accountSyncUrl) throw new Error('Customer account sync is not configured.')
@@ -488,29 +486,11 @@ export async function saveCustomerAccountSync(
   orders: CustomerOrder[],
   expectedRevision: number,
   token: string,
+  originalAccount: CustomerAccount,
 ): Promise<CustomerAccountSyncRecord> {
   if (useSupabaseCustomerAccounts) {
-    const userId = userIdFromAccessToken(token)
-    const response = await supabaseRequest(
-      `customer_accounts?user_id=eq.${encodeURIComponent(userId)}&revision=eq.${expectedRevision}`,
-      token,
-      {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({
-          company_name: account.companyName,
-          contact_name: account.contactName,
-          phone: account.phone,
-          billing_profiles: account.billingProfiles,
-          receiving_locations: account.receivingLocations,
-        }),
-      },
-    )
-    const rows = await readJson(response)
-    if (response.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
-    if (!response.ok) throw new Error(apiErrorMessage(rows, 'Unable to save your customer account.'))
-    if (!Array.isArray(rows) || !rows[0]) throw new Error('This account changed in another session. Refresh and try again.')
-    return normalizeSupabaseAccountRecord(rows[0], orders.map(customerOrderToSupabaseShape))
+    const row = await saveCustomerPreferences({ url: supabaseUrl, key: supabaseAnonKey, token }, account, originalAccount, expectedRevision)
+    return normalizeSupabaseAccountRecord(row, orders.map(customerOrderToSupabaseShape))
   }
 
   if (!accountSyncUrl) throw new Error('Customer account sync is not configured.')
@@ -675,6 +655,7 @@ function normalizeSupabaseAccountRecord(accountValue: unknown, orderValues: unkn
     updatedAt: String(row.updated_at || ''),
     updatedBy: 'Shared customer database',
     account: {
+      syncRevision: Math.max(1, Number(row.revision || 1)),
       companyName: String(row.company_name || ''),
       contactName: String(row.contact_name || ''),
       email: String(row.email || ''),
