@@ -1,0 +1,21 @@
+.not-found-page {
+  padding: clamp(32px, 6vw, 80px) max(24px, calc((100vw - 1280px) / 2));
+}
+
+.not-found-page > p {
+  max-width: 620px;
+  line-height: 1.5;
+}
+
+.not-found-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.not-found-actions .secondary-button {
+  color: var(--ink);
+  border-color: var(--site-border);
+  background: var(--site-surface);
+}

@@ -74,6 +74,7 @@ import { addConfiguredCartItem, buildQuoteRequestLine, changeCartLineCases, remo
 import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
 import { loadCart, saveCart } from './cartPersistence'
 import './App.css'
+import { NotFoundPage } from './NotFoundPage'
 
 const heroImage = '/images/storefront-hero.webp'
 const nexgenLogo = String(import.meta.env.VITE_BRAND_LOGO)
@@ -960,7 +961,7 @@ function App() {
         </section>}
           />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
 
@@ -1602,7 +1603,7 @@ function IndustryDetailPage() {
   const industry = industries.find((item) => item.id === industryId)
 
   if (!industry) {
-    return <Navigate to="/industries" replace />
+    return <NotFoundPage />
   }
 
   const Icon = industryIcons[industry.id] ?? Boxes
@@ -1713,7 +1714,7 @@ function ProductDetailPage({ products, cart, onAdd, onRequestSample }: ProductDe
   const product = products.find((item) => item.id === productId)
 
   if (!product) {
-    return <Navigate to="/products" replace />
+    return <NotFoundPage />
   }
 
   const requestedLineId = new URLSearchParams(search).get('cartLine') || ''
