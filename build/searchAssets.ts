@@ -20,8 +20,14 @@ export function searchAssets(site: ReturnType<typeof getSiteSettings>): Plugin {
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${publicRoutes.map(route => `  <url><loc>${escape(site.origin + route)}</loc></url>`).join('\n')}\n</urlset>\n`
   return {
     name: 'storefront-search-assets',
-    transformIndexHtml() {
-      return site.noindex ? [{ tag: 'meta', attrs: { name: 'robots', content: 'noindex,nofollow' }, injectTo: 'head' }] : []
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        return {
+          html: html.replaceAll('%VITE_SITE_URL%', site.origin),
+          tags: site.noindex ? [{ tag: 'meta', attrs: { name: 'robots', content: 'noindex,nofollow' }, injectTo: 'head' }] : [],
+        }
+      },
     },
     generateBundle() {
       this.emitFile({ type: 'asset', fileName: 'robots.txt', source: robots })

@@ -1002,8 +1002,8 @@ main {
 }
 
 .hero-copy h1,
-.section-intro h2,
-.contact-section h2 {
+.section-intro :is(h1, h2),
+.contact-section h1 {
   max-width: 980px;
   margin: 0;
   font-size: clamp(42px, 5.6vw, 82px);
@@ -1017,7 +1017,7 @@ main {
   filter: brightness(0) invert(1);
 }
 
-.hero-copy p:not(.eyebrow),
+.hero-copy .hero-tagline,
 .section-intro p,
 .contact-section p,
 .forecast-panel p {
@@ -1027,7 +1027,8 @@ main {
   line-height: 1.52;
 }
 
-.hero-copy p:not(.eyebrow) {
+.hero-copy .hero-tagline {
+  margin-bottom: 1em;
   max-width: 620px;
   margin-top: 22px;
   color: rgba(255, 255, 255, 0.74);
@@ -3077,8 +3078,8 @@ main {
   gap: 14px;
 }
 
-.section-intro h2,
-.contact-section h2 {
+.section-intro :is(h1, h2),
+.contact-section h1 {
   font-size: clamp(34px, 5vw, 66px);
   line-height: 0.98;
 }
@@ -4443,14 +4444,20 @@ main {
 }
 
 .product-detail-mobile-heading {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .product-quote-summary {
   display: none;
 }
 
-.product-detail-copy h1 {
+.product-detail-copy .product-detail-title {
+  font-weight: 700;
   max-width: 640px;
   margin: 0;
   font-size: clamp(48px, 5vw, 72px);
@@ -4938,7 +4945,7 @@ main {
     padding-top: 0;
   }
 
-  .product-detail-copy h1 {
+  .product-detail-copy .product-detail-title {
     font-size: clamp(46px, 4vw, 64px);
   }
 
@@ -6833,7 +6840,7 @@ footer {
   }
 
   .hero-logo,
-  .hero-copy p:not(.eyebrow) {
+  .hero-copy .hero-tagline {
     margin-inline: auto;
   }
 
@@ -7100,10 +7107,20 @@ footer {
   }
 
   .product-collection-hero-copy {
+    width: 100%;
+  }
+
+  .product-collection-hero-copy > p,
+  .product-collection-desktop-title {
     display: none;
   }
 
+  .product-collection-hero-copy h1 {
+    margin: 0;
+  }
+
   .product-collection-mobile-title {
+    font-weight: 700;
     position: relative;
     z-index: 2;
     width: 100%;
@@ -7320,7 +7337,7 @@ footer {
     width: min(86%, 330px);
   }
 
-  .hero-copy p:not(.eyebrow) {
+  .hero-copy .hero-tagline {
     max-width: 350px;
     margin-top: 16px;
     margin-bottom: 0;
@@ -7438,7 +7455,7 @@ footer {
     line-height: 1.02;
   }
 
-  .hero-copy p:not(.eyebrow) {
+  .hero-copy .hero-tagline {
     margin-top: 16px;
     margin-bottom: 0;
     font-size: 23px;
@@ -7544,6 +7561,11 @@ footer {
   }
 
   .product-detail-mobile-heading {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
     margin-bottom: 18px;
     display: block;
   }
@@ -7578,7 +7600,7 @@ footer {
 
   .product-media-caption,
   .product-detail-copy > .eyebrow,
-  .product-detail-copy > h1,
+  .product-detail-copy > .product-detail-title,
   .product-detail-copy > .product-detail-lead,
   .product-detail-copy > .product-detail-badges,
   .product-configurator-intro,

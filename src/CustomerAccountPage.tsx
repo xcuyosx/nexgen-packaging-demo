@@ -278,7 +278,7 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
                 <AccountMenuRow
                   icon={<PackageCheck size={21} />}
                   title="Orders"
-                  description={orders.length ? `${orders.length} website order${orders.length === 1 ? '' : 's'}` : 'Track orders and reorder products'}
+                  description={orders.length ? `${orders.length} order${orders.length === 1 ? '' : 's'} in your account` : 'Review your order history'}
                   onClick={() => setActiveView('orders')}
                 />
               </section>
@@ -338,14 +338,14 @@ export function CustomerAccountPage({ account, orders, quoteRequests, quoteReque
               title="Orders"
               description="Select an order to view its products, shipping, billing, and status."
               onBack={returnToAccount}
-              action={<Link className="account-primary-action" to="/products"><Plus size={17} /> New order</Link>}
+              action={<Link className="account-primary-action" to="/products"><Plus size={17} /> New quote request</Link>}
             />
             <section className="account-content-card">
               {orders.length === 0 ? (
                 <div className="account-empty-state">
                   <PackageCheck size={30} />
-                  <strong>No website orders yet</strong>
-                  <span>Orders placed through this website appear here.</span>
+                  <strong>No orders available</strong>
+                  <span>Your order history appears here when available. To request pricing, start a quote request.</span>
                   <Link to="/products">Shop products <ArrowRight size={16} /></Link>
                 </div>
               ) : (

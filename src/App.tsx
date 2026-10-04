@@ -75,6 +75,7 @@ import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from 
 import { loadCart, saveCart } from './cartPersistence'
 import './App.css'
 import { NotFoundPage } from './NotFoundPage'
+import { DocumentMeta } from './DocumentMeta'
 
 const heroImage = '/images/storefront-hero.webp'
 const nexgenLogo = String(import.meta.env.VITE_BRAND_LOGO)
@@ -584,7 +585,7 @@ function App() {
   const sendContactRequest = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const needLabels: Record<string, string> = {
-      standard: 'Standard product order',
+      standard: 'Standard product quote request',
       sample: 'Product sample request',
       custom: 'Custom printed packaging',
       reorder: 'Reorder or account support',
@@ -604,6 +605,7 @@ function App() {
   return (
     <div className="site-shell">
       <RouteScrollManager />
+      <DocumentMeta products={allProducts} />
       <header className="site-header">
         <Link className={`header-brand${headerBrandVisible ? ' visible' : ''}`} to="/" aria-label="Nexgen Packaging Group home">
           <img src={nexgenLogo} alt="" />
@@ -661,7 +663,7 @@ function App() {
 
           <div className="hero-copy">
             <img className="hero-logo" src={nexgenLogo} alt="Nexgen Packaging Group" />
-            <p>Packaging procurement, built for modern foodservice teams.</p>
+            <h1 className="hero-tagline">Packaging procurement, built for modern foodservice teams.</h1>
             <div className="hero-actions">
               <Link className="primary-button" to="/custom">
                 <Sparkles className="hero-action-icon" size={17} />
@@ -884,7 +886,7 @@ function App() {
             element={<section className="capabilities-section page-section" id="capabilities">
           <div className="section-intro">
             <p className="eyebrow">NexGen capabilities</p>
-            <h2>Manufacturing, customization, and supply support in one packaging partner.</h2>
+            <h1>Manufacturing, customization, and supply support in one packaging partner.</h1>
           </div>
 
           <div className="capability-grid">
@@ -913,7 +915,7 @@ function App() {
             element={<section className="contact-section page-section" id="contact">
           <div>
             <p className="eyebrow">Contact NexGen</p>
-            <h2>Tell us what you need. We’ll help complete the order.</h2>
+            <h1>Tell us what you need. We’ll help prepare your quote.</h1>
             <p>
               Share the product, quantity, artwork, timing, and delivery requirements. Our team will
               confirm specifications, pricing, availability, and next steps.
@@ -937,7 +939,7 @@ function App() {
                 value={contactRequest.need}
                 onChange={(event) => setContactRequest((current) => ({ ...current, need: event.target.value }))}
               >
-                <option value="standard">Standard product order</option>
+                <option value="standard">Standard product quote request</option>
                 <option value="sample">Product sample request</option>
                 <option value="custom">Custom printed packaging</option>
                 <option value="reorder">Reorder or account support</option>
@@ -1023,7 +1025,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
       <section className="box-builder-section page-section">
         <div className="section-intro">
           <p className="eyebrow">Custom</p>
-          <h2>Custom products are being prepared.</h2>
+          <h1>Custom products are being prepared.</h1>
           <p>Please contact the NexGen team to start a custom-print program.</p>
         </div>
       </section>
@@ -1075,7 +1077,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
       <div className="section-intro custom-builder-intro">
         <div>
           <p className="eyebrow">Custom product studio</p>
-          <h2>Put your brand on a NexGen cup.</h2>
+          <h1>Put your brand on a NexGen cup.</h1>
           <p>
             Start with a cup already in the NexGen catalog, upload your artwork, choose up to four
             print colors, and arrange the logo for a custom quote.
@@ -1447,10 +1449,9 @@ function ProductCollectionPage({ division, products }: ProductCollectionPageProp
       <header className="product-collection-hero">
         <div className="product-collection-hero-copy">
           <p className="eyebrow">{division} collection</p>
-          <h1>{title}</h1>
+          <h1><span className="product-collection-desktop-title">{title}</span><span className="product-collection-mobile-title">{division} collection</span></h1>
           <p>{description}</p>
         </div>
-        <h1 className="product-collection-mobile-title">{division} collection</h1>
         <span className="collection-count"><strong>{products.length}</strong> product families</span>
       </header>
 
@@ -1832,7 +1833,7 @@ function ProductDetailContent({ product, products, cartItem, editingLineId, onAd
 
         <div className="product-detail-copy">
           <p className="eyebrow">{spec ? `Item ${spec.itemNumber}` : `${product.category} packaging`}</p>
-          <h1>{product.name}</h1>
+          <p className="product-detail-title" aria-hidden="true">{product.name}</p>
           <p className="product-detail-lead">{product.description}</p>
           <div className="badge-list product-detail-badges">
             {product.badges.map((badge) => <span key={badge}>{badge}</span>)}
