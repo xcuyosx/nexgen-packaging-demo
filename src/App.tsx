@@ -152,6 +152,7 @@ function App() {
   const [quoteRequestReady, setQuoteRequestReady] = useState(false)
   const [quoteRequestNumber, setQuoteRequestNumber] = useState('')
   const [quoteRequestLoading, setQuoteRequestLoading] = useState(false)
+  const quoteSubmissionBusy = useRef(false)
   const [quoteRequestError, setQuoteRequestError] = useState('')
   const [buyer, setBuyer] = useState<QuoteContact>({
     name: '',
@@ -539,7 +540,7 @@ function App() {
   const sendQuoteRequest = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!cartDetails.length) return
-    if (quoteRequestReady) return
+    if (quoteRequestReady || quoteSubmissionBusy.current) return
 
     setQuoteRequestError('')
     setQuoteRequestReady(false)
@@ -558,6 +559,7 @@ function App() {
 
     const billingProfile = customerAccount.billingProfiles.find((profile) => profile.id === buyer.billingProfileId)
     const receivingLocation = customerAccount.receivingLocations.find((location) => location.id === buyer.receivingLocationId)
+    quoteSubmissionBusy.current = true
     setQuoteRequestLoading(true)
     try {
       const result = await submitCustomerQuoteRequest(customerSession.token, {
@@ -580,6 +582,7 @@ function App() {
     } catch (error) {
       setQuoteRequestError(error instanceof Error ? error.message : 'Unable to submit this quote request.')
     } finally {
+      quoteSubmissionBusy.current = false
       setQuoteRequestLoading(false)
     }
   }

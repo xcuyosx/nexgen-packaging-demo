@@ -1,5 +1,5 @@
 import { classifyCustomerSignupResponse, isExistingAccountAuthError, parseCustomerPasswordRecoveryUrl } from './customerAuthResponse'
-import { artworkFileDetails, artworkNeedsReattachment, artworkStoragePath } from './artworkUpload'
+import { submitQuoteAttempt } from './quoteSubmission'
 
 export type BillingPreference = 'Credit card' | 'Invoice / net terms' | 'Purchase order'
 
@@ -541,81 +541,9 @@ export async function submitCustomerQuoteRequest(
   if (!accountResponse.ok) throw new Error(apiErrorMessage(accounts, 'Unable to identify your customer account.'))
   if (!Array.isArray(accounts) || !accounts[0]?.lead_id) throw new Error('This account is not linked to a NexGen customer record.')
 
-  const requestId = crypto.randomUUID()
-  const requestNumber = `WEB-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
-  const filesByLine = new Map<number, File>()
-  for (const selected of request.artworkFiles || []) {
-    if (!Number.isInteger(selected.lineIndex) || selected.lineIndex < 0 || selected.lineIndex >= request.lines.length || filesByLine.has(selected.lineIndex)) {
-      throw new Error('The artwork selection is invalid. Reattach the file and try again.')
-    }
-    filesByLine.set(selected.lineIndex, selected.file)
-  }
-  const attemptedArtworkPaths: string[] = []
-  try {
-    const lines: CustomerQuoteRequestLine[] = []
-    for (const [index, line] of request.lines.entries()) {
-      const file = filesByLine.get(index)
-      if (artworkNeedsReattachment(line.artworkName, file)) {
-        throw new Error(`Reattach ${line.artworkName} to ${line.productName} before submitting your quote.`)
-      }
-      if (!file) {
-        lines.push(line)
-        continue
-      }
-      if (file.name !== line.artworkName) throw new Error('The artwork selection changed. Reattach the file and try again.')
-      const { extension, contentType } = artworkFileDetails(file)
-      const artworkPath = artworkStoragePath(userId, requestId, crypto.randomUUID(), extension)
-      attemptedArtworkPaths.push(artworkPath)
-      const upload = await fetch(`${supabaseUrl}/storage/v1/object/customer-quote-artwork/${artworkPath}`, {
-        method: 'POST',
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${token}`,
-          'Content-Type': contentType,
-          'x-upsert': 'false',
-        },
-        body: file,
-        signal: AbortSignal.timeout(60_000),
-      })
-      if (upload.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
-      if (!upload.ok) throw new Error('Artwork upload failed. Your quote was not submitted. Please try again.')
-      lines.push({ ...line, artworkPath })
-    }
-    const response = await supabaseRequest('customer_quote_requests', token, {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({
-        id: requestId,
-        user_id: userId,
-        lead_id: String(accounts[0].lead_id),
-        request_number: requestNumber,
-        contact_snapshot: request.contact,
-        billing_snapshot: request.billing,
-        shipping_snapshot: request.shipping,
-        purchase_order: request.purchaseOrder,
-        notes: request.notes,
-        lines,
-      }),
-    })
-    const body = await readJson(response)
-    if (response.status === 401) throw new Error('Your customer session has expired. Please sign in again.')
-    if (!response.ok) throw new Error(apiErrorMessage(body, 'Unable to submit your quote request.'))
-    return { requestNumber }
-  } catch (error) {
-    // Storage is outside the quote insert transaction. A submitted request's
-    // artwork is protected by the delete policy if the response was lost.
-    await Promise.allSettled(attemptedArtworkPaths.map((path) => fetch(
-      `${supabaseUrl}/storage/v1/object/customer-quote-artwork/${path}`,
-      {
-        method: 'DELETE',
-        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(15_000),
-      },
-    )))
-    throw error
-  }
+  return submitQuoteAttempt({ url: supabaseUrl, key: supabaseAnonKey, token, userId,
+    leadId: String(accounts[0].lead_id), request })
 }
-
 export async function fetchCustomerQuoteHistory(token: string, signal?: AbortSignal): Promise<CustomerQuoteHistoryEntry[]> {
   if (!useSupabaseCustomerAccounts) return []
   const response = await supabaseRequest('rpc/customer_quote_history', token, {

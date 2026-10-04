@@ -17,16 +17,16 @@ go-live until domain credentials are available.
 | C4 Not found | **Done locally** | Unknown routes/products/industries show helpful noindex pages. Deep links pass. Host still uses SPA HTTP 200 fallback. |
 | C5 Search assets | **Done locally; hosted check pending** | Generated sitemap has 53 public URLs. Staging/previews are noindex. Final public origin pending. |
 | C6 Metadata/copy | **Done locally** | Distinct titles, 70–160 character descriptions, canonical/social tags, single h1 and quote-request wording. Temporary social image. |
-| C7 Footer/legal | **Blocked on content** | Complete footer navigation and noindex “Coming soon” legal routes. Approved legal text and full location list pending. |
+| C7 Footer/legal | **Drafts ready for review** | Privacy, website/quote terms, conditional sales terms and credit application drafted at Bradley’s request. Company name confirmed; business details and counsel approval pending. Public legal routes remain unpublished. |
 | C8 Security/cache | **Prepared; hosted rollout pending** | Local enforced CSP checks pass. Vercel config starts Report-Only; real hosted verification must precede enforcement. |
 | C9 Mobile | **Done locally; iPhone check pending** | Zoom allowed; 16 px controls verified at 375 and 768 px. Physical iOS Safari remains untested. |
-| C10 Quote flow | **Incomplete** | Submission/database/storage path traced, file limits checked, blob preview cleanup verified. Durable sales/customer notifications, signed email links and full persisted-row/inbox test remain. |
+| C10 Quote flow | **Implemented and tested locally** | Durable jobs, safe retries, verified recipient and sales-only signed artwork links; 34 local database/browser assertions pass. Hosted deployment, worker schedule, sender verification and actual inbox checks remain. |
 | C11 Home claims | **Blocked on approval** | Four existing tiles centralized unchanged. Counts, SQF wording/certificate/scope need approval. |
 | C12 Production settings | **Reviewed; launch blocked** | All 34 public tables have RLS; anonymous read checks returned no customer rows/artwork. Shared database, SMTP, default Auth templates, redirects and security advisor follow-up remain. |
 
 ## Verification evidence
 
-- TypeScript and ESLint passed; 30 unit/regression tests passed.
+- TypeScript and ESLint passed; 43 unit/regression tests passed. Quote notifications also passed 34 local database/browser assertions with synthetic Auth, Storage, mail and CRM bridge fixtures.
 - A separate archive of the committed HEAD also passed TypeScript, independently
   of the unfinished C1 draft. The four contact browser checks passed; the fallback
   details assertion was scoped to Contact after the footer gained matching links.
@@ -55,8 +55,8 @@ work/storefront-assets and outputs/storefront-*; per-item reports have details.
 
 1. Domain/DNS access to finish the Wix-compatible Resend setup; authorized test
    mailbox and approved inquiry/quote/Auth email copy. No real email was sent.
-2. Counsel's Privacy Policy → src/content/privacy.md; Terms of Use and Quote
-   Terms → src/content/terms.md. Publication flags remain false. No legal text invented.
+2. Review docs/legal-drafts with counsel. Final Privacy Policy → src/content/privacy.md; Terms of Use and Quote
+   Terms → src/content/terms.md. Publication flags remain false. Bradley requested drafting and confirmed NexGen Packaging Group as the name; unresolved details are marked.
 3. Five verified locations/full address → src/businessContact.ts; approved counts
    and SQF wording/scope/certificate → src/businessStats.ts and supplied certificate.
 4. Approved logo SVG → public/brand/logo.svg (existing PNG remains fallback);

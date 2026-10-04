@@ -1,0 +1,3 @@
+# Scheduler-only endpoint; handler requires a server-held worker secret.
+[functions.quote-notifications]
+verify_jwt = false

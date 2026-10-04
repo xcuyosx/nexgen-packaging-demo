@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "node --test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:quotes:integration": "node scripts/check-quote-notifications.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.14.0",
@@ -28,6 +29,8 @@
     "globals": "^17.5.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "@playwright/test": "1.63.0",
+    "pg": "8.16.3"
   }
 }
