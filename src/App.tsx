@@ -76,6 +76,7 @@ import { NotFoundPage } from './NotFoundPage'
 import { DocumentMeta } from './DocumentMeta'
 import { SiteFooter } from './SiteFooter'
 import { LegalPage } from './LegalPage'
+import { businessStats } from './businessStats'
 import { ArtworkImage } from './ArtworkImage'
 
 const heroImage = '/images/storefront-hero.webp'
@@ -714,12 +715,7 @@ function App() {
         </section>
 
         <section className="trust-band" aria-label="Nexgen strengths">
-          {[
-            ['5', 'manufacturing and distribution locations'],
-            ['500k+', 'square feet in St. Louis and New Jersey'],
-            ['50+', 'paper converting and plastic processing machines'],
-            ['SQF', 'food-grade packaging certification story'],
-          ].map(([value, label]) => (
+          {businessStats.map(({ value, label }) => (
             <div key={label}>
               <strong>{value}</strong>
               <span>{label}</span>
