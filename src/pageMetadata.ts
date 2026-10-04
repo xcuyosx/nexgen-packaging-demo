@@ -1,6 +1,7 @@
 import { paperProducts, plasticProducts, products } from './catalog'
 import type { Product } from './catalog'
 import { industries } from './industries'
+import { legalDocuments } from './legalDocuments'
 
 export type PageMetadata = { title: string; description: string; noindex?: boolean }
 export const homeMetadata: PageMetadata = {
@@ -25,6 +26,8 @@ const shorten = (text: string, limit = 155) => text.length <= limit ? text : `${
 export function getPageMetadata(pathname: string, catalog: Product[] = products): PageMetadata {
   const route = pathname.replace(/\/+$/, '').toLowerCase() || '/'
   if (pages[route]) return pages[route]
+  const legal = route === '/privacy' ? legalDocuments.privacy : route === '/terms' ? legalDocuments.terms : undefined
+  if (legal) return { title: `${legal.title} | NexGen`, description: legal.description, noindex: !legal.published }
   const product = catalog.find(item => `/products/${item.id}` === route)
   if (product) return {
     title: `${product.name} | NexGen Packaging`,

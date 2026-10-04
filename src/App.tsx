@@ -10,9 +10,7 @@ import {
   Factory,
   Leaf,
   Mail,
-  MapPin,
   Menu,
-  Phone,
   PackageOpen,
   Plus,
   Pizza,
@@ -76,6 +74,8 @@ import { loadCart, saveCart } from './cartPersistence'
 import './App.css'
 import { NotFoundPage } from './NotFoundPage'
 import { DocumentMeta } from './DocumentMeta'
+import { SiteFooter } from './SiteFooter'
+import { LegalPage } from './LegalPage'
 
 const heroImage = '/images/storefront-hero.webp'
 const nexgenLogo = String(import.meta.env.VITE_BRAND_LOGO)
@@ -963,26 +963,13 @@ function App() {
         </section>}
           />
 
+          <Route path="/privacy" element={<LegalPage document="privacy" />} />
+          <Route path="/terms" element={<LegalPage document="terms" />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
 
-      <footer>
-        <div className="footer-links">
-          <span>
-            <Phone size={15} /> (833) 853-1243
-          </span>
-          <span>
-            <Mail size={15} /> orders@nexgenpac.com
-          </span>
-          <span>
-            <MapPin size={15} /> Bridgeton, MO
-          </span>
-        </div>
-        <Link to="/">
-          Home <ChevronRight size={15} />
-        </Link>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

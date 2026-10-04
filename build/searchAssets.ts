@@ -1,5 +1,7 @@
 import type { Plugin } from 'vite'
+import { readFileSync } from 'node:fs'
 import { publicRoutes } from '../src/publicRoutes'
+import { legalDocuments } from '../src/legalDocuments'
 
 const stagingOrigin = 'https://storefront-staging.vercel.app'
 
@@ -15,6 +17,11 @@ export function getSiteSettings(env: Record<string, string>, mode: string) {
 }
 
 export function searchAssets(site: ReturnType<typeof getSiteSettings>): Plugin {
+  for (const [id, document] of Object.entries(legalDocuments)) {
+    if (document.published && !readFileSync(`src/content/${id}.md`, 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim()) {
+      throw new Error(`Approved legal content is missing for ${id}.`)
+    }
+  }
   const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;')
   const robots = `User-agent: *\nAllow: /\nDisallow: /cart\nDisallow: /account\nSitemap: ${site.origin}/sitemap.xml\n`
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${publicRoutes.map(route => `  <url><loc>${escape(site.origin + route)}</loc></url>`).join('\n')}\n</urlset>\n`
