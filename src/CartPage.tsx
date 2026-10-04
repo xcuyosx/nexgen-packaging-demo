@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { CustomerAccount } from './customerAccount'
 import type { CartLine, QuoteContact } from './storefrontCart'
 import { artworkNeedsReattachment } from './artworkUpload'
+import { ArtworkImage } from './ArtworkImage'
 
 type CartPageProps = {
   items: CartLine[]
@@ -77,7 +78,7 @@ export function CartPage({
                       {item.product.id === 'plastic-entree-containers' && item.component === 'Lid'
                         ? <span aria-hidden="true"><PackageOpen size={22} /><small>Lid image pending</small></span>
                         : <img src={item.product.image} alt="" />}
-                      {item.artworkPreview ? <img className="cart-artwork-preview" src={item.artworkPreview} alt={`Artwork selected for ${item.productName || item.product.name}`} /> : null}
+                      {item.artworkPreview ? <ArtworkImage className="cart-artwork-preview" file={item.artworkFile} alt={`Artwork selected for ${item.productName || item.product.name}`} /> : null}
                     </Link>
 
                     <div className="cart-page-item-copy">

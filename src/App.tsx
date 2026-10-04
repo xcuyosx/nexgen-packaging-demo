@@ -76,6 +76,7 @@ import { NotFoundPage } from './NotFoundPage'
 import { DocumentMeta } from './DocumentMeta'
 import { SiteFooter } from './SiteFooter'
 import { LegalPage } from './LegalPage'
+import { ArtworkImage } from './ArtworkImage'
 
 const heroImage = '/images/storefront-hero.webp'
 const nexgenLogo = String(import.meta.env.VITE_BRAND_LOGO)
@@ -1312,8 +1313,8 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
               />
               <div className="custom-artwork-window">
                 {artworkPreview ? (
-                  <img
-                    src={artworkPreview}
+                  <ArtworkImage
+                    file={artworkFile}
                     alt="Uploaded artwork preview"
                     style={{
                       width: `${artworkAdjustment.size}%`,
@@ -1999,7 +2000,7 @@ function ProductDetailContent({ product, products, cartItem, editingLineId, onAd
                       <span><strong>{artworkName || 'Add your artwork'}</strong><small>PNG, JPG, SVG, PDF, AI, or EPS · 10 MB max</small></span>
                       <input type="file" accept=".ai,.eps,.pdf,.png,.jpg,.jpeg,.svg,image/*" onChange={(event) => selectArtwork(event.target.files?.[0])} />
                     </label>
-                    {artworkPreview ? <div className="cup-artwork-preview"><img src={artworkPreview} alt="Uploaded product artwork preview" /><span>Artwork preview</span></div> : null}
+                    {artworkPreview ? <div className="cup-artwork-preview"><ArtworkImage file={artworkFile} alt="Uploaded product artwork preview" /><span>Artwork preview</span></div> : null}
                     {artworkError ? <p className="cup-artwork-error" role="alert">{artworkError}</p> : null}
                   </div>
                 ) : null}
