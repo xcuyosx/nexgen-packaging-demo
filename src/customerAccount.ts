@@ -145,7 +145,7 @@ const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$
 const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '')
 const useSupabaseCustomerAccounts = Boolean(supabaseUrl && supabaseAnonKey)
 
-export const demoCustomerAccountId = 'summit-stadium-group'
+export const demoCustomerAccountId = import.meta.env.DEV ? 'summit-stadium-group' : ''
 
 export const emptyCustomerAccount: CustomerAccount = {
   companyName: '',
@@ -157,7 +157,7 @@ export const emptyCustomerAccount: CustomerAccount = {
   paymentMethods: [],
 }
 
-export const demoCustomerAccount: CustomerAccount = {
+export const demoCustomerAccount: CustomerAccount = import.meta.env.DEV ? {
   companyName: 'Summit Stadium Group',
   contactName: 'Jordan Reyes',
   email: 'jordan@summitstadiumgroup.example',
@@ -212,9 +212,9 @@ export const demoCustomerAccount: CustomerAccount = {
       expires: '11/28',
     },
   ],
-}
+} : emptyCustomerAccount
 
-export const demoCustomerOrders: CustomerOrder[] = [
+export const demoCustomerOrders: CustomerOrder[] = import.meta.env.DEV ? [
   {
     id: 'SO-2026-001-04',
     createdAt: '2026-08-28T15:30:00.000Z',
@@ -242,7 +242,7 @@ export const demoCustomerOrders: CustomerOrder[] = [
       { productId: '40000000-0000-4000-8000-000000000016', productName: 'Branded tamper seal sticker', sku: 'SEAL3-CAT-16', cases: 5, size: '3 in round', customPrint: true, lineTotal: 75 },
     ],
   },
-]
+] : []
 
 export function loadCustomerAccount(): CustomerAccount {
   try {

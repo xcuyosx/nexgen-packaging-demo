@@ -48,7 +48,7 @@ const catalogProductImages: Record<string, string> = {
 
 // Local preview records mirror the current CRM seed. Production replaces these
 // with the active records returned by the safe storefront_catalog RPC.
-const previewRows: StorefrontCatalogRow[] = [
+const previewRows: StorefrontCatalogRow[] = import.meta.env.DEV ? [
   ['40000000-0000-4000-8000-000000000002', 'CUP20-CAT-02', '20 oz stadium cup', 'Custom printed cups', '/product-images/clear-cup.png', 'PET', '20 oz', '1,000/case', 0.145, '21 days', 'Custom'],
   ['40000000-0000-4000-8000-000000000003', 'LID16-CAT-03', 'Flat clear cup lid', 'Custom printed cups', '/product-images/clear-lid.png', 'PET', 'Fits 16-20 oz cup', '1,000/case', 0.041, '14 days', 'Stocked'],
   ['40000000-0000-4000-8000-000000000004', 'SLV12-CAT-04', 'Custom kraft cup sleeve', 'Custom printed cups', '/product-images/kraft-liner.png', 'Kraft paperboard', '12-20 oz fit', '1,500/case', 0.068, '18 days', 'Custom'],
@@ -70,7 +70,7 @@ const previewRows: StorefrontCatalogRow[] = [
   id: String(id), sku: String(sku), product_name: String(product_name), category: String(category), image_path: String(image_path),
   material: String(material), dimensions: String(dimensions), case_pack: String(case_pack), sell_price: Number(sell_price),
   lead_time: String(lead_time), stock_type: String(stock_type),
-}))
+})) : []
 
 export const previewStorefrontProducts = previewRows.map(mapStorefrontProduct)
 
