@@ -1,0 +1,52 @@
+NexGen Legal Document Review Notes
+
+DRAFT FOR REVIEW — NOT APPROVED FOR PUBLICATION OR CUSTOMER USE
+Prepared 4 October 2026
+
+How to use these drafts
+
+Prepared 2026-10-04 for Bradley Cuyos. These are proposed documents for business and attorney review, not a legal compliance determination. The Privacy Policy and website terms are storefront publication candidates. Terms of Sale and the credit application are conditional on the actual sales and credit process.
+
+The user authorized drafting after the original brief had reserved legal drafting for counsel. Publication flags remain false. No live pages, DNS, email settings or production data were changed for this legal packet.
+
+All bracketed TODO(bradley) items must be resolved or removed deliberately. An effective date must reflect actual adoption. Do not present proposed safeguards, response processes or terms as established business practices until they are confirmed.
+
+Decisions needed from the business
+
+Bradley supplied NexGen Packaging Group as the company name. Confirm the full mailing address and the business contact authorized to handle privacy requests.
+
+Confirm customer geography, whether sales are business-only, and whether invoicing on credit terms is offered. Counsel should assess applicable state, federal and international law rather than assume Missouri law controls because Bridgeton appears on the site.
+
+Confirm company-wide sale, sharing and marketing practices; production partners receiving artwork or shipping details; retention by record category; deletion and backup handling; log and email tracking settings; and the team responsible for privacy requests.
+
+Approve quotation validity practice, order acceptance, proof approval, tolerances, freight/risk allocation, payment terms, warranties, claims handling and contract precedence. Existing signed customer agreements need to be checked before adopting new terms.
+
+Implementation needed before publication
+
+Publish only the approved policy version. Add a clear Privacy Policy link and appropriate collection notice at account registration, inquiry submission and quote submission. If relying on contractual assent, implement a clear terms acknowledgment with a reliable version and acceptance record. Do not add a prechecked marketing permission.
+
+The reviewed code uses localStorage for cart choices and sessionStorage for account/session information. Artwork files are not persisted in the saved cart. Supabase, Vercel and Fontshare are visible in the implementation. Resend is provisioned but live inquiry/quote email is not enabled. Confirm actual hosted behavior and account email provider before finalizing disclosures.
+
+Implement and exercise privacy request handling, retention/deletion procedures and provider arrangements. Decide whether a regional privacy supplement, consent control or opt-out mechanism is required. The drafts do not establish that every regional law applies or that the site is already compliant.
+
+Keep sales and credit documents separate from the website terms until the contract and credit workflow is approved. Credit applications require a protected intake process and appropriate business-credit decision notices. Do not collect consumer-report authorizations or guarantees by implication.
+
+Research for counsel review
+
+FTC, Protecting Personal Information: A Guide for Business. Inventory information, limit collection and access, set retention rules and plan for incidents. https://www.ftc.gov/business-guidance/resources/protecting-personal-information-guide-business
+
+California Attorney General, CCPA. Applicability and rights require business-specific review; business contact information should not be assumed exempt. https://oag.ca.gov/privacy/ccpa
+
+California Attorney General, Business Privacy Resources. Review CalOPPA disclosures and online tracking requirements where relevant. https://oag.ca.gov/privacy/business-privacy
+
+FTC, CAN-SPAM Act Compliance Guide. Assess messages by their primary purpose; an inquiry acknowledgment should not be assumed exempt merely because it is called transactional. Review final content before sending. https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business
+
+Missouri Revised Statutes 400.2-204. Illustrates that a sales contract can arise through conduct as well as a formal writing; Missouri applicability is unconfirmed. https://revisor.mo.gov/main/OneSection.aspx?section=400.2-204
+
+CFPB, Regulation B 1002.9. Counsel should determine applicable business-credit notification procedures before using the credit application. https://www.consumerfinance.gov/rules-policy/regulations/1002/9/
+
+Files and ownership
+
+Editable text files and matching PDFs are included. The Privacy Policy includes browser-storage disclosure; a separate cookie policy has not been assumed necessary. Regional addenda and sales-specific clauses remain decisions for counsel after the business facts are known.
+
+Review sequence: Bradley confirms business facts; finance confirms sales and credit practices; counsel revises legal language; engineering implements required controls and verifies the final published documents.

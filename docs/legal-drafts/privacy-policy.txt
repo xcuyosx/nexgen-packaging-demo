@@ -1,0 +1,76 @@
+NexGen Storefront Privacy Policy
+
+DRAFT FOR REVIEW — NOT APPROVED FOR PUBLICATION OR CUSTOMER USE
+Prepared 4 October 2026
+
+About this policy
+
+Effective date: [TODO(bradley): Set the date after approval and publication.]
+
+NexGen Packaging Group ("NexGen," "we," "us"), operates the NexGen customer storefront. This policy explains how we handle personal information in connection with browsing products, customer accounts, inquiries, quote requests and related communications. It does not cover employee or job applicant records.
+
+You may contact us at orders@nexgenpac.com or (833) 853-1243. Our mailing address is [TODO(bradley): Full registered or appropriate business mailing address].
+
+Information we receive
+
+You provide your name, company name, email address and account credentials when registering or signing in. Your account may also include a phone number, billing contacts and preferences, receiving addresses, delivery contacts, receiving hours and delivery instructions. Authentication is handled through our authentication provider.
+
+When you request a quote, we receive your selected products, quantities, specifications, print colors, artwork files and placement choices, billing and receiving details, purchase order reference and notes. We keep request references, status information and related communications. We may link these records to your company account and our customer relationship management system. Order information associated with your account may also be displayed.
+
+When you contact us, we receive the contact information and message you submit, including attachments you choose to send through an available channel. Please do not send passwords, full payment card numbers, bank login details, Social Security numbers or other sensitive personal information through quote notes, artwork or the contact form. The storefront does not collect payment at checkout.
+
+Our website and infrastructure providers process technical information needed to deliver and protect the service, such as IP addresses, request times, browser and device information, requested pages and error information. [TODO(bradley): Confirm actual log fields, provider retention, email delivery tracking and any additional analytics before publication.]
+
+How we use information
+
+We use information to create and authenticate accounts; maintain company and receiving details; prepare, manage and respond to quote requests; review artwork and specifications; communicate about accounts, requests and related business; support customers; operate and troubleshoot the service; and prevent misuse.
+
+We also use records as needed to administer an agreed transaction, maintain business records, resolve disputes and meet applicable legal obligations. Any promotional mailing program must use its own approved notice and preference process; submitting a quote request does not itself enroll you in a marketing list. [TODO(bradley): Confirm this policy matches all offline and online marketing practices.]
+
+When information is disclosed
+
+NexGen personnel who support your account, requests and service operations may access relevant information. We use service providers for hosting, authentication, databases, file storage, email and technical support. Information necessary for those services is processed by the relevant provider.
+
+The storefront uses Vercel for hosting and Supabase for account authentication, application data and artwork storage. Fontshare supplies web fonts, so loading fonts sends connection information, including your IP address, to that provider. [TODO(bradley): On activation, include Resend as the provider for inquiry and quote email delivery; confirm the provider used for account verification and password reset emails.]
+
+[TODO(bradley): Confirm whether, and under what safeguards, artwork, delivery information or business contacts are shared with manufacturers, printers, freight providers, affiliates or other fulfillment partners. Add the actual categories and purposes here.]
+
+We may disclose information when required by law, to respond to a valid legal process, or where legally permitted and necessary to protect rights, safety or the service. If our business is reorganized or transferred, relevant records may be included subject to applicable safeguards and notice requirements.
+
+[TODO(bradley): Confirm all advertising, data sharing and commercial data practices before stating whether NexGen sells personal information, shares it for cross-context behavioral advertising or uses targeted advertising. A source-code scan alone does not establish these company-wide facts.]
+
+Browser storage and outside services
+
+The storefront uses local browser storage to retain a quote cart, including configuration choices and artwork filenames. The saved cart does not retain the artwork file itself; after a reload, you may need to attach it again. Cart information remains until cleared by the application or your browser.
+
+To prevent duplicate quote submissions after a connection failure, local storage also retains a pending request identifier, reference number and a digest used to recognize the same request. This retry record contains no artwork bytes or contact details and is cleared when the application confirms the submission.
+
+Session storage holds sign-in session information, cached account details and displayed order history. Signing out clears those application records. Browser session behavior, including restoring tabs, depends on your browser. Use sign-out on shared devices rather than relying only on closing a tab.
+
+You can clear or restrict browser storage in your browser settings. Doing so may remove a saved cart or interrupt sign-in. External websites and services have their own privacy practices. [TODO(bradley): Verify hosted cookies, injected analytics, email open/click tracking and the treatment of Do Not Track and Global Privacy Control signals. Add applicable consent or opt-out controls before publication.]
+
+Retention and safeguards
+
+We retain information according to its purpose, the status of our relationship, applicable recordkeeping obligations and any need to handle a dispute, security issue or legal hold. Account closure may not remove quote, transaction or legally required records immediately. Backup copies may remain until the relevant backup cycle ends.
+
+[TODO(bradley): Approve and implement a retention and deletion schedule for inquiries, accounts, quote records, artwork, security logs, mail delivery records and backups. State the actual periods or meaningful criteria here. Do not publish an automatic deletion promise until the process exists.]
+
+We use access controls and other safeguards intended to protect information. No internet service or transmission can be guaranteed completely secure. Protect your account credentials and tell us if you suspect unauthorized access. [TODO(bradley): Confirm organizational safeguards and the incident response owner.]
+
+Your choices and requests
+
+You can review and update information supported by the account settings. You may also contact orders@nexgenpac.com with a privacy question or request to access, correct or delete information. We may need to verify your identity and authority to act for another person or business; please do not include sensitive identity documents in your initial email.
+
+Depending on your location and the law that applies, you may have rights to access, correction, deletion, portability, restrictions, an appeal or an opt-out of particular processing. These rights may have exceptions. We will handle applicable requests under the law and explain any available appeal process in our response.
+
+[TODO(bradley): Counsel must determine applicable state and international laws, confirm a monitored request process and required response deadlines, and add any required regional notices, complaint contacts, legal bases, transfer safeguards and opt-out mechanisms. This general paragraph does not replace those requirements.]
+
+Business use and children
+
+This storefront is intended for people acting for businesses and is not directed to children under 13. If you believe a child has provided personal information, contact us so we can investigate and take appropriate action. [TODO(bradley): Confirm the intended audience, geographic scope and account eligibility rules.]
+
+Changes and contact
+
+We will identify revisions by updating the effective date. For material changes, we will provide additional notice when required by law. We will obtain any consent required for a materially different use of previously collected information.
+
+Privacy inquiries: orders@nexgenpac.com | (833) 853-1243. Mailing address: [TODO(bradley): Confirm full address].

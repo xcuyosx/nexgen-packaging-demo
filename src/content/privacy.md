@@ -1,1 +1,1 @@
-<!-- TODO(bradley): Replace with the Privacy Policy supplied and approved by counsel. No legal text has been drafted here. -->
+<!-- TODO(bradley): Review docs/legal-drafts/privacy-policy.txt with counsel, resolve business details, and replace this placeholder with the approved final policy. Drafts are not published. -->

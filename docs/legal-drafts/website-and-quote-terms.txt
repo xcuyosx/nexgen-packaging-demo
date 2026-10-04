@@ -1,0 +1,76 @@
+NexGen Terms of Use and Quote Terms
+
+DRAFT FOR REVIEW — NOT APPROVED FOR PUBLICATION OR CUSTOMER USE
+Prepared 4 October 2026
+
+Scope and business identity
+
+Effective date: [TODO(bradley): Set after approval and publication.]
+
+These terms govern use of the customer storefront operated by NexGen Packaging Group ("NexGen"). They cover product browsing, customer accounts, artwork tools and requests for pricing. They do not replace a separately agreed sales contract or terms incorporated into an accepted order.
+
+[TODO(bradley): Counsel must approve the method by which users accept these terms and the record of the accepted version. A footer link alone should not be treated as proof of assent.]
+
+Accounts and authorized use
+
+You must have authority to act for the business identified in your account and provide accurate account and request information. Keep your credentials confidential and promptly notify us of suspected misuse. Do not use another person's account without authorization. You remain responsible for instructions you are authorized to give; this provision does not make you responsible for every act of an unauthorized attacker.
+
+A signed-in account is required to submit a quote request through the cart. Account creation, a billing preference or a saved purchase order reference does not grant credit, approve a purchase order or authorize a charge.
+
+Do not disrupt the service, introduce malicious files, attempt to access another customer's records, bypass access controls, impersonate another person or use the service unlawfully. We may restrict access reasonably necessary to address misuse or protect the service, subject to applicable law and existing contractual obligations.
+
+Requesting a quote
+
+Product listings, studio previews, cart contents and submitted quote requests are requests for discussion and pricing. Submitting a request does not place an order or require either party to buy or sell goods. The storefront does not take an online payment.
+
+A request reference or automated acknowledgment confirms receipt only. It does not confirm price, stock, a production slot, delivery timing, credit approval or acceptance of an order. NexGen may ask for specifications, quantities, artwork, delivery details or other information before preparing a quotation.
+
+Tell us promptly if you need to correct a request. Do not rely on an edited account address to change an earlier request or an accepted order; ask NexGen to confirm that change in writing.
+
+Quotations and formation of a sale
+
+A quotation is non-binding unless it expressly states otherwise. Any validity period, price conditions, currency, freight, tax, tooling, minimum quantities or other charges will be stated in the written quotation. If no validity period is stated, ask NexGen to confirm current pricing before relying on it.
+
+No fixed price-hold period is created by these website terms. A price change after an order has been accepted is governed by that order's agreed terms, not by a later website update.
+
+A sale proceeds only through the order acceptance process agreed with NexGen. [TODO(bradley): Specify the actual acceptance event, authorized approval process and document precedence with counsel. Do not rely on a universal rule that a contract can arise only by signature; conduct can also be legally relevant.]
+
+Specifications and artwork
+
+You are responsible for checking the selected product, size, material, component, case quantity, ink colors, spelling and delivery instructions. Images and on-screen artwork placement are previews; they are not final production proofs or promises of an exact screen-to-print match. Applicable tolerances and final specifications must be agreed for the order.
+
+You retain ownership of artwork you supply. You confirm that you have the rights and permissions needed for NexGen to receive, review and use it for your request and any subsequently agreed order, including rights relating to logos, trademarks, images and personal information.
+
+You grant NexGen a nonexclusive, limited permission to store, reproduce, adjust for proofing and share the artwork with service providers or production partners only as reasonably needed to evaluate your request and carry out an agreed order. This does not authorize public portfolio, advertising or unrelated reuse. Any such use requires separate permission.
+
+Do not upload material you cannot lawfully provide or files containing malware. [TODO(bradley): Confirm permitted production partners, confidentiality arrangements, proof approval steps and artwork retention. Align the Privacy Policy before adopting this clause.]
+
+Product suitability and claims
+
+Tell NexGen about intended food contact, temperature, storage, disposal, labeling and other application requirements before ordering. Any product-specific food-contact, environmental or certification representation must be supported by the applicable product documentation or written agreement. General site descriptions do not establish that every product has a particular certification or is suitable for every use.
+
+These terms do not remove any warranty or other obligation that cannot lawfully be excluded, and they do not override an express specification or warranty in an accepted agreement.
+
+Site content and availability
+
+NexGen or its licensors retain rights in site content other than customer-supplied material. You may use product information and site tools for legitimate evaluation and business with NexGen, subject to third-party rights. Do not misrepresent ownership or reproduce protected content for unrelated commercial use without permission.
+
+We work to keep the service useful and information accurate, but errors and interruptions can occur. Contact us to confirm information material to a purchase. Changes to the website do not themselves amend an accepted order.
+
+Privacy and communications
+
+The Privacy Policy describes handling of account, inquiry, quote and artwork information. We may communicate about a request or account using the contact details provided. An automated receipt is not an order acceptance or a marketing subscription.
+
+Do not submit full payment card details, bank credentials, Social Security numbers or passwords in quote notes, artwork or ordinary email. If payment or credit setup is needed, ask NexGen for the approved process.
+
+Legal rights and disputes
+
+Nothing in these terms excludes rights or remedies that applicable law does not permit to be excluded. Terms concerning product warranties, remedies, liability and sales disputes must be addressed in the applicable accepted agreement.
+
+[TODO(bradley): Counsel to confirm governing law, venue, any liability provisions and the conflict hierarchy with existing contracts. No arbitration clause, class-action waiver, personal guarantee or liability cap has been selected in this draft.]
+
+Changes and contact
+
+We may update these terms for future use, with notice and assent where required. Updates do not retroactively change an accepted order or rights that arose under a prior agreement.
+
+Questions or corrections: orders@nexgenpac.com | (833) 853-1243. Mailing address: [TODO(bradley): Full business mailing address].

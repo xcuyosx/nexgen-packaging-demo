@@ -1,0 +1,72 @@
+NexGen Business Terms of Sale
+
+DRAFT FOR REVIEW — NOT APPROVED FOR PUBLICATION OR CUSTOMER USE
+Prepared 4 October 2026
+
+Scope and incorporation
+
+Seller: NexGen Packaging Group. Buyer: The business identified in the accepted quotation or order acknowledgment.
+
+These proposed terms are intended for business sales of packaging products only when expressly incorporated into the parties' agreement. Website browsing, a quote request and its automated receipt do not incorporate these sales terms or create an order.
+
+[TODO(bradley): Finance and counsel must align these terms with existing sales contracts before use. Set version, effective date, acceptance process and document precedence. Do not send this draft as an operative attachment.]
+
+Quotations and orders
+
+The quotation or order acknowledgment should identify products, specifications, quantities, unit of sale, prices, currency, taxes, freight, tooling and other charges, delivery arrangements and any validity period. Unstated items must be resolved in writing before acceptance.
+
+A purchase order is subject to the parties' agreed acceptance process. Conflicting purchase order language must be resolved expressly rather than assumed to be overridden by these terms. [TODO(bradley): Define authorized acceptance and treatment of additional or conflicting terms.]
+
+Artwork and production approval
+
+Buyer must provide accurate specifications and have the rights necessary for Seller and authorized production partners to use supplied artwork for the order. Buyer retains ownership of supplied artwork. Public display or marketing use requires separate permission.
+
+The parties must approve a final specification and any required production proof before custom production begins. Seller must request approval of a material departure from the approved specification. On-screen previews do not replace proof approval.
+
+[TODO(bradley): State agreed color and dimensional tolerances, permitted overrun or underrun, proof approval method, tooling ownership, tooling storage charges if any, and who may authorize changes. No numerical tolerance or ownership transfer is assumed here.]
+
+Prices and payment
+
+The accepted order determines the price and included charges. Any price-adjustment mechanism must be stated and agreed before acceptance. Taxes, exemptions, freight and special handling must be identified in the applicable quotation or acknowledgment.
+
+Credit is available only after separate written approval. Selecting a billing preference or submitting a purchase order does not approve a credit limit or payment period. Any approved credit limit, due date and invoicing instructions will be stated in the written approval or accepted order.
+
+[TODO(bradley): Finance to confirm deposits, billing milestones, due-date calculation, accepted payment methods, disputed-invoice procedure and any lawful late-charge or collection-cost provisions. No net-30 term, deposit percentage, late fee or collection charge is created by this draft.]
+
+Delivery and receiving
+
+Buyer must provide accurate receiving details and disclose delivery appointment, dock, liftgate, access or handling requirements before shipment. Seller should identify whether quoted dates are estimates or binding commitments.
+
+[TODO(bradley): Specify shipping term and named place, transfer of risk and title, freight responsibility, carrier claims process, partial-shipment rules and consequences of delays or failed delivery. Select these terms per transaction; no automatic transfer at shipment is assumed.]
+
+Inspection and nonconforming goods
+
+Buyer should inspect delivered goods and notify Seller promptly of a claimed shortage, damage or nonconformity, with the order reference and available supporting information. The parties should preserve relevant goods and packaging while investigating where reasonable. This request does not shorten any mandatory legal rights.
+
+[TODO(bradley): Set reasonable notice procedures, treatment of concealed defects, returns authorization, return freight responsibility and available remedies. Any warranty limitation or exclusive remedy needs conspicuous, jurisdiction-appropriate counsel drafting. No blanket warranty disclaimer is adopted here.]
+
+Changes and cancellation
+
+Requests to change or cancel an accepted order must be reviewed and agreed in writing. Before accepting a change or cancellation, Seller should identify its effect on price, production, timing and reasonably incurred costs.
+
+[TODO(bradley): Approve rules for custom goods, stock goods, restocking, obsolete materials and work in progress. Do not describe all custom goods as nonrefundable without considering defect remedies and applicable law.]
+
+Product requirements and compliance
+
+Buyer must communicate the intended application and any required regulatory, food-contact, performance, labeling or certification requirements. Seller's agreed obligations must be stated in the product specification or accepted order. Neither party should substitute an unverified general website claim for required product documentation.
+
+[TODO(bradley): Confirm warranties, specifications, recall cooperation and traceability practices with operations and counsel. These terms do not certify a product or guarantee an environmental disposal outcome.]
+
+Confidentiality and records
+
+Each party should use the other party's nonpublic artwork, specifications and commercial information only for the relationship, share it only with people and providers who need it for that purpose, and apply appropriate safeguards. Disclosure legally required by a valid process remains subject to applicable law.
+
+[TODO(bradley): Align this clause with any existing NDA, approved production partner terms, data retention rules and legally required records.]
+
+Remaining legal terms
+
+[TODO(bradley): Counsel to complete governing law and venue, legally appropriate warranty language, liability allocation, indemnities if warranted, force majeure, notices, assignment, severability and the agreed contract hierarchy. Do not insert a liability cap or personal guarantee without an explicit business decision.]
+
+Nothing in the approved final terms should exclude rights or liabilities that cannot lawfully be excluded. Changes to the website will not automatically amend an existing accepted order.
+
+Business contact: orders@nexgenpac.com | (833) 853-1243. Formal notice address: [TODO(bradley): Confirm address].

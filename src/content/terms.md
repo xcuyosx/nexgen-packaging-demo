@@ -1,1 +1,1 @@
-<!-- TODO(bradley): Replace with the Terms of Use and Quote Terms supplied and approved by counsel. No legal text has been drafted here. -->
+<!-- TODO(bradley): Review docs/legal-drafts/website-and-quote-terms.txt with counsel, resolve business details, and replace this placeholder with approved final terms. Drafts are not published. -->
