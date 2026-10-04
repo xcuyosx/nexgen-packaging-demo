@@ -26,18 +26,6 @@ type StorefrontCatalogRow = {
   public_image_status?: 'Concept' | 'Approved' | null
 }
 
-const productImages: Record<string, string> = {
-  'beverage-napkin.png': 'https://static.wixstatic.com/media/067fd2_81c9663dd29449a29611123b88c3816b~mv2.jpeg/v1/fill/w_896,h_610,al_c,q_85,enc_avif,quality_auto/papercupscheers.jpeg',
-  'clear-cup.png': 'https://static.wixstatic.com/media/067fd2_dcba4a3a1e104ac3b9fb7399dc7eb054~mv2.jpg/v1/fill/w_890,h_514,al_c,q_85,enc_avif,quality_auto/plasticcupbeerserving.jpg',
-  'clear-lid.png': 'https://static.wixstatic.com/media/067fd2_dcba4a3a1e104ac3b9fb7399dc7eb054~mv2.jpg/v1/fill/w_890,h_514,al_c,q_85,enc_avif,quality_auto/plasticcupbeerserving.jpg',
-  'fiber-bowl.png': 'https://static.wixstatic.com/media/067fd2_59fab9c03a7c41599a037342b9aebc94~mv2.jpeg/v1/crop/x_118,y_565,w_4769,h_2540/fill/w_1858,h_990,al_c,q_85,enc_avif,quality_auto/plastic%20cup%20with%20fruit.jpeg',
-  'fiber-tray.png': 'https://static.wixstatic.com/media/067fd2_59fab9c03a7c41599a037342b9aebc94~mv2.jpeg/v1/crop/x_118,y_565,w_4769,h_2540/fill/w_1858,h_990,al_c,q_85,enc_avif,quality_auto/plastic%20cup%20with%20fruit.jpeg',
-  'kraft-bag.png': 'https://static.wixstatic.com/media/067fd2_81c9663dd29449a29611123b88c3816b~mv2.jpeg/v1/fill/w_896,h_610,al_c,q_85,enc_avif,quality_auto/papercupscheers.jpeg',
-  'kraft-liner.png': 'https://static.wixstatic.com/media/067fd2_81c9663dd29449a29611123b88c3816b~mv2.jpeg/v1/fill/w_896,h_610,al_c,q_85,enc_avif,quality_auto/papercupscheers.jpeg',
-  'pizza-box.png': 'https://static.wixstatic.com/media/067fd2_95949ec8a878425ca9c1c55b49f201dc~mv2.jpeg/v1/crop/x_0,y_17,w_4000,h_4125/fill/w_894,h_922,al_c,q_85,enc_avif,quality_auto/plasticcup.jpeg',
-  'tamper-seal.png': 'https://static.wixstatic.com/media/067fd2_95949ec8a878425ca9c1c55b49f201dc~mv2.jpeg/v1/crop/x_0,y_17,w_4000,h_4125/fill/w_894,h_922,al_c,q_85,enc_avif,quality_auto/plasticcup.jpeg',
-}
-
 const catalogProductImages: Record<string, string> = {
   'CUP20-CAT-02': '/product-images/catalog/20oz-stadium-cup.jpg',
   'LID16-CAT-03': '/product-images/catalog/flat-clear-cup-lid.jpg',
@@ -116,7 +104,6 @@ function mapStorefrontProduct(row: StorefrontCatalogRow): Product {
   const category = storefrontCategory(row.category)
   const dimensions = row.dimensions.trim() || 'Standard format'
   const casePack = row.case_pack.trim() || 'Case pack confirmed with order'
-  const imageName = row.image_path.split('/').pop() || ''
   const applications = row.public_applications?.filter(Boolean) || applicationsForCategory(category)
   const hasPublicSpec = Boolean(row.item_number && row.spec_sheet_path)
   return {
@@ -131,7 +118,7 @@ function mapStorefrontProduct(row: StorefrontCatalogRow): Product {
     description: row.public_description?.trim() || `${row.product_name} in ${dimensions}, supplied as ${casePack}. Availability and delivery timing are confirmed before release.`,
     casePack,
     leadTime: row.lead_time || 'Confirmed with order',
-    image: catalogProductImages[row.sku] || productImages[imageName] || curatedProducts[0].image,
+    image: catalogProductImages[row.sku] || curatedProducts[0].image,
     badges: [row.stock_type || 'Program item', dimensions, casePack],
     applications,
     sizes: [dimensions],

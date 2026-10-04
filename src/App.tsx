@@ -75,11 +75,8 @@ import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from 
 import { loadCart, saveCart } from './cartPersistence'
 import './App.css'
 
-const heroImage =
-  'https://static.wixstatic.com/media/067fd2_0ee5edd567cf45428f5ca53176428944~mv2.jpg/v1/fill/w_980,h_548,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/067fd2_0ee5edd567cf45428f5ca53176428944~mv2.jpg'
-
-const nexgenLogo =
-  'https://static.wixstatic.com/media/067fd2_442e8edbc68c491ea121fea22fc5f107~mv2.png/v1/fill/w_918,h_218,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/067fd2_442e8edbc68c491ea121fea22fc5f107~mv2.png'
+const heroImage = '/images/storefront-hero.webp'
+const nexgenLogo = String(import.meta.env.VITE_BRAND_LOGO)
 
 type ArtworkAdjustment = {
   size: number
@@ -656,8 +653,8 @@ function App() {
         <section className="hero-section">
           <div className="hero-media" aria-hidden="true">
             <picture>
-              <source media="(max-width: 560px)" srcSet="/hero/mobile-storefront-hero-v2.jpg" />
-              <img src={heroImage} alt="" />
+              <source media="(max-width: 560px)" type="image/webp" srcSet="/hero/mobile-storefront-hero-v2.webp" width={1024} height={1536} />
+              <img src={heroImage} alt="" width={2400} height={1341} fetchPriority="high" loading="eager" />
             </picture>
           </div>
 
