@@ -139,7 +139,7 @@ export type CustomerQuoteHistoryItem = {
 }
 
 export type CustomerQuoteHistoryEntry = {
-  purchaseOrder?:string;quoteTotal?:number|null;currency?:string;validThrough?:string;needsReply?:boolean;activity?:{at:string;label:string}[]
+  purchaseOrder?:string;quoteTotal?:number|null;currency?:string;validThrough?:string;needsReply?:boolean;unreadCount?:number;activity?:{at:string;label:string}[]
   requestNumber: string
   submittedAt: string
   status: string
@@ -553,7 +553,7 @@ export async function fetchCustomerQuoteHistory(token: string, signal?: AbortSig
     if (!requestNumber) return null
     const items = Array.isArray(row.items) ? row.items : []
     return {
-      requestNumber,purchaseOrder:String(row.purchase_order||''),quoteTotal:typeof row.quote_total==='number'?row.quote_total:null,currency:String(row.currency||'USD'),validThrough:String(row.valid_through||''),needsReply:row.needs_reply===true,activity:Array.isArray(row.activity)?row.activity.map((value:unknown)=>{const event=value as Record<string,unknown>;return {at:String(event.at||''),label:String(event.label||'Quote update')}}):[],
+      requestNumber,purchaseOrder:String(row.purchase_order||''),quoteTotal:typeof row.quote_total==='number'?row.quote_total:null,currency:String(row.currency||'USD'),validThrough:String(row.valid_through||''),needsReply:row.needs_reply===true,unreadCount:Math.max(0,Number(row.unread_count)||0),activity:Array.isArray(row.activity)?row.activity.map((value:unknown)=>{const event=value as Record<string,unknown>;return {at:String(event.at||''),label:String(event.label||'Quote update')}}):[],
       submittedAt: String(row.submitted_at || ''),
       status: String(row.customer_status || 'Preparing your quote'),
       issuedQuoteNumber: String(row.issued_quote_number || ''),

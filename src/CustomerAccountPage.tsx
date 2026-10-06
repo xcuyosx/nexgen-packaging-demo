@@ -1,4 +1,5 @@
 import { PortalHome } from './PortalHome'
+import {unreadReplies} from './portalAttention'
 import { PortalQuoteList } from './PortalQuoteList'
 import { PortalSkeleton, PortalError } from './PortalFeedback'
 import type { QuoteReceipt } from './QuoteRequestSummary'
@@ -95,6 +96,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
   const location = useLocation()
   const navigate = useNavigate()
   const activeView = accountViewFromSearch(location.search)
+  const unreadCount = quoteRequests.reduce((sum,request)=>sum+unreadReplies(request),0)
   const setActiveView = (view: AccountView) => { if (!unsaved || window.confirm('Leave without saving your current form?')) navigate(view === 'overview' ? '/account' : `/account?view=${view}`) }
   const [draft, setDraft] = useState<{ value: CustomerAccount; original: CustomerAccount } | null>(null)
   const [saved, setSaved] = useState(false)
@@ -225,7 +227,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
       <div className="account-shell portal-account-shell">
         <aside className="portal-left-nav" aria-label="Account navigation"><strong>{accountName}</strong><nav>
           <button type="button" aria-current={activeView==='overview'?'page':undefined} onClick={()=>setActiveView('overview')}>Home</button>
-          <button type="button" aria-current={activeView==='quotes'?'page':undefined} onClick={()=>setActiveView('quotes')}>Quotes</button>
+          <button type="button" aria-current={activeView==='quotes'?'page':undefined} onClick={()=>setActiveView('quotes')}>Quotes{unreadCount>0&&<span className="portal-unread-badge" aria-label={`${unreadCount} unread replies`}>{unreadCount}</span>}</button>
           <button type="button" aria-current={['profile','billing','locations'].includes(activeView)?'page':undefined} onClick={()=>setActiveView('profile')}>Company</button>
           <Link to="/contact?need=Account%20correction">Contact NexGen</Link>
         </nav><div className="portal-company-nav"><button type="button" onClick={()=>setActiveView('billing')}>Billing preferences</button><button type="button" onClick={()=>setActiveView('locations')}>Delivery locations</button></div></aside>
@@ -298,7 +300,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
               onBack={returnToAccount}
               action={<Link className="account-primary-action" to="/products"><Plus size={17} /> New request</Link>}
             />
-            {new URLSearchParams(location.search).get('request') ? <CustomerQuoteDetail token={token} requestNumber={new URLSearchParams(location.search).get('request')!} refresh={quoteRequests} onRequestAgain={onRequestAgain} /> : <PortalQuoteList requests={quoteRequests} status={quoteRequestsStatus} error={quoteRequestsError} refresh={onRefreshQuoteRequests}/>}
+            {new URLSearchParams(location.search).get('request') ? <CustomerQuoteDetail token={token} requestNumber={new URLSearchParams(location.search).get('request')!} refresh={quoteRequests} onMessagesRead={onRefreshQuoteRequests} onRequestAgain={onRequestAgain} /> : <PortalQuoteList requests={quoteRequests} status={quoteRequestsStatus} error={quoteRequestsError} refresh={onRefreshQuoteRequests}/>}
 
           </>
         )}

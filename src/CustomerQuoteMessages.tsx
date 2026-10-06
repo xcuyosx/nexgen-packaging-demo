@@ -6,11 +6,14 @@ import {formatPortalDate} from './portalPresentation'
 import {PortalError,PortalSkeleton} from './PortalFeedback'
 type Message={id:string;authorKind:'staff'|'customer';authorName:string;body:string;createdAt:string;action:string}
 type Action='message'|'request_changes'|'decline'|'accept'
-export function CustomerQuoteMessages({token,request,onChanged}:{token:string;request:QuoteReceipt;onChanged:()=>void}){
+export function CustomerQuoteMessages({token,request,onChanged,onRead}:{token:string;request:QuoteReceipt;onRead:()=>void;onChanged:()=>void}){
  const [messages,setMessages]=useState<Message[]|null>(null),[error,setError]=useState(''),[retry,setRetry]=useState(0)
  const [action,setAction]=useState<Action>('message'),[body,setBody]=useState(''),[name,setName]=useState(''),[terms,setTerms]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
+ const onReadRef=useRef(onRead)
+ useEffect(()=>{onReadRef.current=onRead},[onRead])
+ const activityKey=(request.activity||[]).map(event=>event.at+event.label).join('|')
  const attempt=useRef<{key:string;id:string}|null>(null)
- useEffect(()=>{let active=true;void customerQuoteRpc(token,'customer_quote_messages_read',{p_request_number:request.requestNumber,p_mark_read:true}).then(result=>{if(active){setMessages(Array.isArray(result)?result as Message[]:[]);setError('')}}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Messages could not load.')});return()=>{active=false}},[token,request.requestNumber,request.activity,retry])
+ useEffect(()=>{let active=true;void customerQuoteRpc(token,'customer_quote_messages_read',{p_request_number:request.requestNumber,p_mark_read:true}).then(result=>{if(active){setMessages(Array.isArray(result)?result as Message[]:[]);setError('');if(request.needsReply)onReadRef.current()}}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Messages could not load.')});return()=>{active=false}},[token,request.requestNumber,request.needsReply,activityKey,retry])
  const ready=Boolean(request.quote&&['Quote ready','Changes requested','Expired','Declined'].includes(request.status||''))
  async function send(event:React.FormEvent){event.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('')
   const payload={p_request_number:request.requestNumber,p_action:action,p_body:body,p_revision:request.quote?.revision??null,p_typed_name:name,p_terms_accepted:terms}
