@@ -54,6 +54,7 @@ export type Product = {
   badges: string[]
   applications: string[]
   sizes: string[]
+  manualQuoteSizes?: string[]
   optionGroups?: ProductOptionGroup[]
   maxPrintColors?: 0 | 1 | 2 | 3 | 4
   unitPrice?: number | null
@@ -103,9 +104,12 @@ const entreeFormats = {
   square: 'Square · 32 oz · 8 × 8 in (base 520 / lid 520)',
 } as const
 
+export const isManualQuoteSize=(size:string)=>/^(Standard format\s*[-–—]\s*confirm with quote|Custom format)$/i.test(size.trim())
+
 const family = (seed: ProductSeed): Product => ({
   ...seed,
-  sizes: seed.optionGroups.flatMap((group) => group.options),
+  sizes: [...new Set(seed.optionGroups.flatMap((group) => group.options))],
+  manualQuoteSizes: [...new Set(seed.optionGroups.flatMap(group=>group.options).filter(isManualQuoteSize))],
   casePack: seed.casePack || confirmCasePack,
   leadTime: seed.leadTime || confirmLeadTime,
   source: 'curated',

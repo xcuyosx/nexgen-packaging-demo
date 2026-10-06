@@ -9,7 +9,7 @@ export function createQuoteMailer(apiKey: string, request: typeof fetch = fetch)
         // PostgreSQL jsonb reorders object keys. Serialize a fixed shape so the
         // first attempt and the durable replay have identical provider bytes.
         body: JSON.stringify({ from: mail.from, to: mail.to, reply_to: mail.reply_to,
-          subject: mail.subject, text: mail.text }),
+          subject: mail.subject, text: mail.text, html: mail.html }),
       })
       if (!response.ok) throw new Error('Provider rejected email')
       const result = await response.json()

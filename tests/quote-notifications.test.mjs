@@ -1,3 +1,4 @@
+process.env.PORTAL_STOREFRONT_URL='https://portal.example.test';process.env.PORTAL_CRM_URL='https://crm.example.test';
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildQuoteMail, deliverQuoteJob, createQuoteWorker } from '../supabase/functions/quote-notifications/worker.ts'
@@ -6,7 +7,7 @@ import { createQuoteStore } from '../supabase/functions/quote-notifications/stor
 const id='10000000-0000-4000-8000-000000000001', user='20000000-0000-4000-8000-000000000002'
 const path=`${user}/${id}/30000000-0000-4000-8000-000000000003.svg`
 const job=kind=>({request_id:id,kind,created_at:'2026-10-06T15:00:00Z',verified_email:'verified@example.test',prepared_mail:null,first_attempt_at:null,claim_id:crypto.randomUUID(),attempts:1,
- snapshot:{id,user_id:user,request_number:'WEB-20261004-ABC12345',contact:{email:'arbitrary@example.test'},billing:{label:'Office'},shipping:{city:'Local QA'},notes:'<script>unsafe</script>',lines:[{productName:'Test cup',sku:'CUP-QA',cases:12,printColors:1,inkColors:['Black'],artworkName:'qa.svg',artworkPath:path}]}})
+ snapshot:{id,quote_id:id,lead_id:id,reference:'INQ-20261006-AB23CD',user_id:user,request_number:'WEB-20261004-ABC12345',contact:{email:'arbitrary@example.test'},billing:{label:'Office'},shipping:{city:'Local QA'},notes:'<script>unsafe</script>',lines:[{productName:'Test cup',sku:'CUP-QA',cases:12,printColors:1,inkColors:['Black'],artworkName:'qa.svg',artworkPath:path}]}})
 const fixture=()=>{let current; const accepted=[]; const stopped=[]; let signs=0; return {accepted,stopped,get signs(){return signs},get current(){return current},
  store:{claim:async()=>null,sign:async paths=>{signs++;return paths.map(p=>`https://local.test/${p}?token=fixed`)},prepare:async(j,m,t)=>{current={...j,prepared_mail:structuredClone(m),first_attempt_at:t}},accepted:async(j,p)=>{accepted.push({j,p})},release:async(j,why)=>{stopped.push(why)}}}}
 
@@ -25,27 +26,27 @@ test('reply, change-request and inquiry mail use whitelisted text and independen
 
 test('both receipts include submitted details; customer receives no artwork links and only at verified address',async()=>{
  const f=fixture();const sales=await buildQuoteMail(job('sales'),f.store), customer=await buildQuoteMail(job('customer'),f.store)
- assert.deepEqual(sales.to,['orders@nexgenpac.com']);assert.equal(sales.reply_to,'verified@example.test')
- assert.match(sales.text,/token=fixed/);assert.match(sales.text,/24 hours/);assert.match(sales.text,/Local QA/)
+ assert.deepEqual(sales.to,['orders@nexgenpac.com']);assert.equal(sales.reply_to,'orders@nexgenpac.com')
+ assert.doesNotMatch(sales.text,/token=/);assert.match(sales.text,/Open in CRM/);assert.match(sales.text,/Local QA/)
  assert.deepEqual(customer.to,['verified@example.test']);assert.equal(customer.reply_to,'orders@nexgenpac.com')
  assert.match(customer.text,/CUP-QA/);assert.match(customer.text,/12/);assert.doesNotMatch(customer.text,/token=/)
  assert.match(customer.text,/Local QA/);assert.match(customer.text,/Office/);assert.match(customer.text,/within 1 business day/)
- assert.match(customer.text,/Submitted: Oct 6, 2026, 10:00 AM CDT/);assert.match(customer.text,/3. You review the quote/)
- assert.equal(f.signs,1);assert.equal(customer.from,'orders@nexgenpac.com')
+ assert.match(customer.text,/Submitted Oct 6, 2026, 10:00 AM CDT/);assert.match(customer.text,/3. You review the quote/)
+ assert.equal(f.signs,0);assert.equal(customer.from,'orders@nexgenpac.com')
 })
 test('an ambiguous provider acceptance retries the same key and exact signed-link payload',async()=>{
  const f=fixture(), attempts=[], delivered=new Map()
  const send=async(mail,key)=>{attempts.push({mail:structuredClone(mail),key});if(!delivered.has(key)) {delivered.set(key,mail);throw Error('response lost')}return 'same-provider-id'}
  assert.equal(await deliverQuoteJob(job('sales'),f.store,send),'retry')
  assert.equal(await deliverQuoteJob(f.current,f.store,send),'accepted')
- assert.equal(f.signs,1);assert.equal(delivered.size,1);assert.deepEqual(attempts[0],attempts[1]);assert.equal(f.accepted.length,1)
+ assert.equal(f.signs,0);assert.equal(delivered.size,1);assert.deepEqual(attempts[0],attempts[1]);assert.equal(f.accepted.length,1)
 })
 test('lost durable prepare response never sends and later recovers the saved payload',async()=>{
  const f=fixture(), prepare=f.store.prepare;let calls=0
  f.store.prepare=async(...args)=>{await prepare(...args);throw Error('ambiguous prepare')}
  const send=async()=>{calls++;return 'id'}
  assert.equal(await deliverQuoteJob(job('sales'),f.store,send),'retry');assert.equal(calls,0)
- assert.equal(await deliverQuoteJob(f.current,f.store,send),'accepted');assert.equal(calls,1);assert.equal(f.signs,1)
+ assert.equal(await deliverQuoteJob(f.current,f.store,send),'accepted');assert.equal(calls,1);assert.equal(f.signs,0)
 })
 test('missing recipient and cross-customer artwork cannot send; expired retries stop',async()=>{
  for (const bad of [{...job('customer'),verified_email:'header\r\ninjection@example.test'}, {...job('sales'),snapshot:{...job('sales').snapshot,lines:[{artworkPath:path.replace(user,id)}]}}]) {
@@ -87,9 +88,9 @@ test('PostgreSQL jsonb key reordering cannot change provider retry bytes',async(
 
 test('status notices whitelist public fields and keep a separate retry identity per event',async()=>{
  const f=fixture(),first={...job('status'),notification_id:crypto.randomUUID()},keys=[]
- first.snapshot={...first.snapshot,status:'Quote ready',changed_at:'2026-10-06T15:00:00Z',cost:'PRIVATE',margin:'PRIVATE',internal_notes:'PRIVATE'}
+ first.snapshot={...first.snapshot,status:'Quote ready',quote_released:true,released_quote:{publicIdentityVersion:1,quoteNumber:'NGQ-WEB-QA',validThrough:'2026-11-06',total:80,items:[{productName:'Test cup',cases:1,lineTotal:80}]},changed_at:'2026-10-06T15:00:00Z',cost:'PRIVATE',margin:'PRIVATE',internal_notes:'PRIVATE'}
  const mail=await buildQuoteMail(first,f.store)
- assert.deepEqual(mail.to,['verified@example.test']);assert.match(mail.text,/Status: Quote ready/);assert.match(mail.text,/request=WEB-20261004-ABC12345/)
+ assert.deepEqual(mail.to,['verified@example.test']);assert.match(mail.text,/Your quote is ready/);assert.match(mail.text,/request=WEB-20261004-ABC12345/)
  assert.doesNotMatch(mail.text,/PRIVATE|arbitrary@example|token=|unsafe/);assert.equal(f.signs,0)
  const send=async(_mail,key)=>{keys.push(key);return 'local-provider'}
  await deliverQuoteJob(first,f.store,send);await deliverQuoteJob(f.current,f.store,send)

@@ -11,7 +11,11 @@ export function createEmailPreviewHandler({url,key,request=fetch}:{url:string;ke
   try{
    const admin=await request(url+'/rest/v1/rpc/is_nexgen_admin',{method:'POST',headers:{apikey:key,Authorization:authorization,'Content-Type':'application/json'},body:'{}'})
    if(!admin.ok||await admin.json()!==true)return respond(403,{error:'Administrator access required'})
-   return respond(200,{previewOnly:true,sent:0,templates:await renderEmailPreviews()})
+   const inputText=await input.text()
+   if(inputText.length>1024)return respond(400,{error:'Invalid preview request'})
+   const params=inputText?JSON.parse(inputText):{}
+   const fixture=typeof params.fixture==='string'?params.fixture:'Minimal'
+   return respond(200,{previewOnly:true,sent:0,templates:await renderEmailPreviews(fixture)})
   }catch{return respond(503,{error:'Email previews are temporarily unavailable'})}
  }
 }

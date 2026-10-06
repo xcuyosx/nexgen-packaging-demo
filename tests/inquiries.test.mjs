@@ -4,7 +4,7 @@ import {validateInquiry,inquiryLimits} from '../supabase/functions/submit-inquir
 import {createInquiryHandler} from '../supabase/functions/submit-inquiry/handler.ts'
 const fields={name:'QA Visitor',email:'visitor@example.test',phone:'',company:'QA Company',need:'sample',message:'Please send sample information.',website:''},origin='http://127.0.0.1:5182',requestId='10000000-0000-4000-8000-000000000001'
 function fixture(overrides={}){const rows=new Map(),state={rateCalls:0,allowRate:true,addressHash:'',actor:null}
- const handler=createInquiryHandler({allowedOrigins:[origin],configured:true,rateSecret:'local-test-secret-more-than-32-characters',store:{async consumeRate(hash){state.rateCalls++;state.addressHash=hash;return state.allowRate},async save(data,id,hash,actor){state.actor=actor;if(!rows.has(id))rows.set(id,{id:'20000000-0000-4000-8000-000000000002',request_id:id,payload_hash:hash,...data,sales_notified_at:null,visitor_notified_at:null});return rows.get(id)}},...overrides})
+ const handler=createInquiryHandler({allowedOrigins:[origin],configured:true,rateSecret:'local-test-secret-more-than-32-characters',store:{async consumeRate(hash){state.rateCalls++;state.addressHash=hash;return state.allowRate},async save(data,id,hash,actor){state.actor=actor;if(!rows.has(id))rows.set(id,{id:'20000000-0000-4000-8000-000000000002',reference:'INQ-20261006-AB23CD',request_id:id,payload_hash:hash,...data,sales_notified_at:null,visitor_notified_at:null});return rows.get(id)}},...overrides})
  const request=(body={},headers={})=>new Request(origin,{method:'POST',headers:{origin,'content-type':'application/json','x-forwarded-for':'198.51.100.1',...headers},body:JSON.stringify({...fields,requestId,...body})})
  return{handler,request,rows,state}}
 test('field lengths, required fields, optional phone, valid needs and header injection',()=>{
@@ -14,7 +14,7 @@ test('field lengths, required fields, optional phone, valid needs and header inj
  assert.ok(validateInquiry({...fields,email:'bad\nBcc: attacker@example.test'}).errors.email);assert.ok(validateInquiry({...fields,need:'unknown'}).errors.need);assert.equal(validateInquiry(null).kind,'invalid')
 })
 test('inquiry intake succeeds with email disabled and returns a reference without claiming delivery',async()=>{
- const f=fixture(),response=await f.handler(f.request());assert.equal(response.status,200);assert.deepEqual(await response.json(),{ok:true,reference:'INQ-20000000-0000-4000-8000-000000000002',emailConfirmed:false});assert.equal(f.rows.size,1)
+ const f=fixture(),response=await f.handler(f.request());assert.equal(response.status,200);assert.deepEqual(await response.json(),{ok:true,reference:'INQ-20261006-AB23CD',emailConfirmed:false});assert.equal(f.rows.size,1)
  assert.match(f.state.addressHash,/^[a-f0-9]{64}$/);assert.equal(f.state.addressHash.includes('198.51.100.1'),false)
  assert.equal((await f.handler(f.request())).status,200);assert.equal(f.rows.size,1)
 })

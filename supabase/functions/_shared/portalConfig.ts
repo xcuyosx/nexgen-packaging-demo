@@ -3,6 +3,7 @@
 // TODO(bradley): finish sender-domain verification before enabling mail (D-9).
 // D-4 was confirmed by Bradley in this chat: "Within 1 business day".
 export const portalDefaults = {
+  responsePromiseClause: 'within 1 business day',
   responsePromise: 'We follow up within 1 business day with pricing or any questions.',
   contactEmail: 'orders@nexgenpac.com',
   contactPhone: '(833) 853-1243',

@@ -1,4 +1,4 @@
-import type { Product } from './catalog'
+import {isManualQuoteSize,type Product} from './catalog'
 import type { CustomerQuoteRequestLine } from './customerAccount'
 
 export type PrintColorCount = 0 | 1 | 2 | 3 | 4
@@ -148,6 +148,7 @@ export function buildQuoteRequestLine(item: CartLine): CustomerQuoteRequestLine 
     casePack: item.product.casePack,
     cases: item.cases,
     size: item.size || item.product.sizes[0],
+    manualQuote: isManualQuoteSize(item.size || item.product.sizes[0]),
     printColors: item.printColors,
     inkColors: item.inkColors || [],
     artworkName: item.artworkName || '',

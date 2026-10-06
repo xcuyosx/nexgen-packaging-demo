@@ -96,6 +96,7 @@ export type CustomerRegistrationResult =
   | { status: 'signed-in'; login: CustomerLoginResult }
 
 export type CustomerQuoteRequestLine = {
+  manualQuote?: boolean
   productId: string
   sku: string
   productName: string

@@ -1,6 +1,6 @@
-export { portalDefaults as portalConfig } from '../supabase/functions/_shared/portalConfig'
+export { portalDefaults as portalConfig } from '../supabase/functions/_shared/portalConfig.ts'
 
-export {formatPortalDate} from '../supabase/functions/_shared/portalDate'
+export {formatPortalDate} from '../supabase/functions/_shared/portalDate.ts'
 
 export function safeReturnTo(value: string | null): string | null {
   if (!value || !/^\/(account|cart|contact)(\?|$)/.test(value) || value.includes('\\')) return null
