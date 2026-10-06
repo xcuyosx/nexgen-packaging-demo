@@ -279,8 +279,7 @@ export const products: Product[] = [
     description: 'Compact boxes for personal pizzas, slices, and grab-and-go service.', image: '/product-images/catalog/12in-pizza-box.jpg',
     badges: ['Personal and slice', '5 sizes', 'Custom print'], applications: ['Pizza', 'Convenience', 'QSR', 'Takeout'],
     optionGroups: [
-      { label: 'Personal pizza box', options: ['10 in - 6 × 6 × 2.75 in', '12 in - 6.5 × 6.5 × 2.75 in', '14 in - 7 × 7 × 2.75 in', '16 in - 8 × 8 × 2.75 in', '18 in - 9.5 × 9.5 × 2.75 in'] },
-      { label: 'Pizza slice box', options: ['10 in - 6 × 6 × 2.75 in', '12 in - 6.5 × 6.5 × 2.75 in', '14 in - 7 × 7 × 2.75 in', '16 in - 8 × 8 × 2.75 in', '18 in - 9.5 × 9.5 × 2.75 in'] },
+      { label: 'Box size', options: ['10 in - 6 × 6 × 2.75 in', '12 in - 6.5 × 6.5 × 2.75 in', '14 in - 7 × 7 × 2.75 in', '16 in - 8 × 8 × 2.75 in', '18 in - 9.5 × 9.5 × 2.75 in'] },
     ], maxPrintColors: 4,
   }),
   family({
