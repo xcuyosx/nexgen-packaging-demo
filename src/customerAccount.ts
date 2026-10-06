@@ -1,10 +1,12 @@
 import { classifyCustomerSignupResponse, isExistingAccountAuthError, parseCustomerPasswordRecoveryUrl } from './customerAuthResponse'
 import { submitQuoteAttempt } from './quoteSubmission'
 import { saveCustomerPreferences } from './customerAccountPreferences'
+import type { QuoteReceipt } from './QuoteRequestSummary'
 
 export type BillingPreference = 'Credit card' | 'Invoice / net terms' | 'Purchase order'
 
 export type BillingProfile = {
+  isDefault?: boolean
   id: string
   label: string
   legalName: string
@@ -13,6 +15,7 @@ export type BillingProfile = {
 }
 
 export type ReceivingLocation = {
+  isDefault?: boolean
   id: string
   label: string
   address: string
@@ -105,6 +108,7 @@ export type CustomerQuoteRequestLine = {
   inkColors: string[]
   artworkName: string
   artworkPath?: string
+  additionalArtwork?: {name:string;path?:string}[]
   artworkPosition?: {
     size: number
     x: number
@@ -120,13 +124,17 @@ export type CustomerQuoteRequestInput = {
   purchaseOrder: string
   notes: string
   lines: CustomerQuoteRequestLine[]
-  artworkFiles?: { lineIndex: number; file: File }[]
+  artworkFiles?: { lineIndex: number; file: File; attachmentIndex?: number }[]
 }
 
 export type CustomerQuoteHistoryItem = {
   sku: string
   productName: string
   cases: number
+  size?: string
+  material?: string
+  printColors?: number
+  artworkName?: string
 }
 
 export type CustomerQuoteHistoryEntry = {
@@ -552,9 +560,33 @@ export async function fetchCustomerQuoteHistory(token: string, signal?: AbortSig
           sku: String(item.sku || ''),
           productName: String(item.productName || 'Packaging product'),
           cases: Math.max(0, Number(item.cases || 0)),
+          size: String(item.size || ''), material: String(item.material || ''),
+          printColors: Number(item.printColors || 0), artworkName: String(item.artworkName || ''),
         })),
     }
   }).filter((entry): entry is CustomerQuoteHistoryEntry => Boolean(entry))
+}
+
+export async function fetchCustomerQuoteDetail(token: string, requestNumber: string, signal?: AbortSignal): Promise<QuoteReceipt> {
+  const response = await supabaseRequest('rpc/customer_quote_detail', token, { method:'POST', body:JSON.stringify({p_request_number:requestNumber}), signal })
+  const body = await readJson(response)
+  if (!response.ok) throw new Error('Unable to load this request. Please try again or contact NexGen.')
+  if (!body || typeof body !== 'object' || !('requestNumber' in body) || body.requestNumber !== requestNumber) throw new Error('This request is unavailable for your account.')
+  const row = body as Record<string,unknown>
+  const strings = (value: unknown) => value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string,string] => typeof entry[1] === 'string')) : {}
+  return {
+    requestNumber, submittedAt:String(row.submittedAt || ''), status:String(row.status || 'Submitted'),
+    issuedQuoteNumber:String(row.issuedQuoteNumber || ''),validThrough:String(row.validThrough || ''),
+    contact:strings(row.contact),billing:strings(row.billing),shipping:strings(row.shipping),
+    purchaseOrder:String(row.purchaseOrder || ''),notes:String(row.notes || ''),
+    lines:(Array.isArray(row.lines) ? row.lines : []).map((line: Record<string,unknown>) => ({
+      productId:String(line.productId||''),sku:String(line.sku||''),productName:String(line.productName||''),category:String(line.category||''),
+      material:String(line.material||''),dimensions:String(line.dimensions||''),casePack:String(line.casePack||''),
+      cases:Number(line.cases||0),size:String(line.size||''),printColors:Number(line.printColors||0),
+      additionalArtwork:Array.isArray(line.additionalArtwork)?line.additionalArtwork.filter((v): v is {name:string}=>Boolean(v)&&typeof v==='object'&&typeof v.name==='string').map(v=>({name:v.name})):[],
+      inkColors:Array.isArray(line.inkColors)?line.inkColors.filter((v): v is string=>typeof v==='string'):[],artworkName:String(line.artworkName||''),
+    })),
+  }
 }
 
 async function fetchCustomerAccountWithRetry(token: string) {

@@ -71,6 +71,8 @@ import type { CustomerAccount, CustomerOrder, CustomerQuoteHistoryEntry, Custome
 import { addConfiguredCartItem, buildQuoteRequestLine, changeCartLineCases, removeCartLine, replaceConfiguredCartLine } from './storefrontCart'
 import type { CartConfiguration, CartItem, PrintColorCount, QuoteContact } from './storefrontCart'
 import { loadCart, saveCart } from './cartPersistence'
+import { resolveQuoteContact, quoteDeliveryError } from './quoteForm'
+import type { QuoteReceipt } from './QuoteRequestSummary'
 import './App.css'
 import { NotFoundPage } from './NotFoundPage'
 import { DocumentMeta } from './DocumentMeta'
@@ -78,6 +80,7 @@ import { SiteFooter } from './SiteFooter'
 import { LegalPage } from './LegalPage'
 import { businessStats } from './businessStats'
 import { ArtworkImage } from './ArtworkImage'
+import { AdditionalArtworkPicker } from './AdditionalArtworkPicker'
 
 const heroImage = '/images/storefront-hero.webp'
 const nexgenLogo = String(import.meta.env.VITE_BRAND_LOGO)
@@ -137,7 +140,7 @@ function App() {
     && customerSession !== null
     && customerQuoteHistoryResult.userId === customerSession.userId
     && customerQuoteHistoryResult.refresh === quoteHistoryRefresh
-  const customerQuoteHistory = quoteHistoryCurrent ? customerQuoteHistoryResult.requests : []
+  const customerQuoteHistory = customerQuoteHistoryResult?.userId === customerSession?.userId ? customerQuoteHistoryResult?.requests || [] : []
   const customerQuoteHistoryStatus = !customerSessionToken ? 'ready'
     : !quoteHistoryCurrent ? 'loading' : customerQuoteHistoryResult.error ? 'error' : 'ready'
   const customerQuoteHistoryError = quoteHistoryCurrent ? customerQuoteHistoryResult.error : ''
@@ -154,15 +157,15 @@ function App() {
   const [quoteRequestLoading, setQuoteRequestLoading] = useState(false)
   const quoteSubmissionBusy = useRef(false)
   const [quoteRequestError, setQuoteRequestError] = useState('')
-  const [buyer, setBuyer] = useState<QuoteContact>({
-    name: '',
-    company: '',
-    email: '',
-    purchaseOrder: '',
-    billingProfileId: '',
-    receivingLocationId: '',
-    notes: '',
-  })
+  const [buyerDraft, setBuyerDraft] = useState<Partial<QuoteContact>>({})
+  const buyer = resolveQuoteContact(customerAccount, buyerDraft)
+  const [quoteReceipt, setQuoteReceipt] = useState<QuoteReceipt | null>(null)
+  const [cartNotice, setCartNotice] = useState('')
+  useEffect(() => {
+    if (!cartNotice) return
+    const timer = window.setTimeout(() => setCartNotice(''), 8000)
+    return () => window.clearTimeout(timer)
+  }, [cartNotice])
 
   useEffect(() => saveCart(cart), [cart])
 
@@ -284,15 +287,24 @@ function App() {
       })
       .catch((error) => {
         if (controller.signal.aborted) return
-        setCustomerQuoteHistoryResult({
-          userId: customerSession?.userId || '',
-          refresh: quoteHistoryRefresh,
-          requests: [],
+        setCustomerQuoteHistoryResult(previous => ({
+          userId: customerSession?.userId || '', refresh: quoteHistoryRefresh,
+          requests: previous?.userId === customerSession?.userId ? previous?.requests || [] : [],
           error: error instanceof Error ? error.message : 'Unable to load your quote requests.',
-        })
+        }))
       })
     return () => controller.abort()
   }, [customerSession?.expiresAt, customerSession?.provider, customerSession?.refreshToken, customerSession?.userId, customerSessionToken, quoteHistoryRefresh])
+
+  useEffect(() => {
+    if (!customerSessionToken || pathname !== '/account') return
+    const refresh = () => { if (document.visibilityState === 'visible') setQuoteHistoryRefresh(value => value + 1) }
+    refresh()
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    const timer = window.setInterval(refresh, 30_000)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
+  }, [customerSessionToken, pathname, search])
 
   const signInCustomer = async (email: string, password: string) => {
     setCustomerLoginLoading(true)
@@ -317,14 +329,7 @@ function App() {
       saveCustomerOrders(result.record.orders)
       setCustomerLastSyncedAt(result.record.updatedAt)
       setCustomerSyncStatus('connected')
-      setBuyer((current) => ({
-        ...current,
-        name: current.name || result.record.account.contactName,
-        company: current.company || result.record.account.companyName,
-        email: current.email || result.record.account.email,
-        billingProfileId: current.billingProfileId || result.record.account.billingProfiles[0]?.id || '',
-        receivingLocationId: current.receivingLocationId || result.record.account.receivingLocations[0]?.id || '',
-      }))
+      setBuyerDraft({})
       if (returningToCart) navigate('/cart', { replace: true })
     } catch (error) {
       setCustomerLoginError(error instanceof Error ? error.message : 'Sign-in failed. Please try again.')
@@ -365,12 +370,7 @@ function App() {
       saveCustomerOrders(result.record.orders)
       setCustomerLastSyncedAt(result.record.updatedAt)
       setCustomerSyncStatus('connected')
-      setBuyer((current) => ({
-        ...current,
-        name: result.record.account.contactName,
-        company: result.record.account.companyName,
-        email: result.record.account.email,
-      }))
+      setBuyerDraft({})
       if (returningToCart) navigate('/cart', { replace: true })
     } catch (error) {
       setCustomerLoginError(error instanceof Error ? error.message : 'Account creation failed. Please try again.')
@@ -425,6 +425,8 @@ function App() {
     setCustomerAccount(emptyCustomerAccount)
     setCustomerOrders([])
     setCustomerQuoteHistoryResult(null)
+    setBuyerDraft({})
+    setQuoteReceipt(null)
     setQuoteRequestNumber('')
     setQuoteRequestReady(false)
     setCart([])
@@ -460,6 +462,7 @@ function App() {
     setQuoteRequestReady(false)
     setQuoteRequestNumber('')
     setQuoteRequestError('')
+    setCartNotice((editLineId ? 'Updated: ' : 'Added: ') + (configuration?.productName || productMap.get(productId)?.name || 'Packaging product') + ' · ' + cases + ' cases')
     const newLineId = crypto.randomUUID()
     setCart((current) => editLineId
       ? replaceConfiguredCartLine(current, editLineId, productId, cases, size, configuration)
@@ -484,7 +487,7 @@ function App() {
     setQuoteRequestReady(false)
     setQuoteRequestNumber('')
     setQuoteRequestError('')
-    setBuyer((current) => ({ ...current, [field]: value }))
+    setBuyerDraft((current) => ({ ...current, [field]: value }))
   }
 
   const syncCustomerRecord = async (nextAccount: CustomerAccount, nextOrders: CustomerOrder[], originalAccount: CustomerAccount) => {
@@ -529,29 +532,33 @@ function App() {
       setQuoteRequestError('Choose a specific base or lid for each entrée item. Remove the unconfigured line and add the exact component from its product page.')
       return
     }
-    if (cartDetails.some((item) => artworkNeedsReattachment(item.artworkName, item.artworkFile))) {
+    if (cartDetails.some((item) => artworkNeedsReattachment(item.artworkName, item.artworkFile) || (item.additionalArtworkNames?.length || 0) !== (item.additionalArtworkFiles?.length || 0))) {
       setQuoteRequestError('Reattach the selected artwork files before submitting your quote request.')
       return
     }
 
+    const deliveryError = quoteDeliveryError(customerAccount, buyer)
+    if (deliveryError) { setQuoteRequestError(deliveryError); return }
     const billingProfile = customerAccount.billingProfiles.find((profile) => profile.id === buyer.billingProfileId)
     const receivingLocation = customerAccount.receivingLocations.find((location) => location.id === buyer.receivingLocationId)
     quoteSubmissionBusy.current = true
     setQuoteRequestLoading(true)
     try {
-      const result = await submitCustomerQuoteRequest(customerSession.token, {
+      const request = {
         contact: {
           name: buyer.name,
           company: buyer.company,
           email: buyer.email,
         },
         billing: billingProfile ? { ...billingProfile } : {},
-        shipping: receivingLocation ? { ...receivingLocation } : {},
+        shipping: receivingLocation ? { ...receivingLocation } : { postalCode: buyer.postalCode.trim() },
         purchaseOrder: buyer.purchaseOrder,
         notes: buyer.notes,
         lines: cartDetails.map(buildQuoteRequestLine),
-        artworkFiles: cartDetails.flatMap((item, lineIndex) => item.artworkFile ? [{ lineIndex, file: item.artworkFile }] : []),
-      })
+        artworkFiles: cartDetails.flatMap((item, lineIndex) => [...(item.artworkFile ? [{ lineIndex, file: item.artworkFile }] : []), ...(item.additionalArtworkFiles || []).map((file, attachmentIndex) => ({lineIndex,file,attachmentIndex}))]),
+      }
+      const result = await submitCustomerQuoteRequest(customerSession.token, request)
+      setQuoteReceipt({ ...request, requestNumber: result.requestNumber, submittedAt: new Date().toISOString() })
       setQuoteRequestNumber(result.requestNumber)
       setQuoteRequestReady(true)
       setCart([])
@@ -587,7 +594,7 @@ function App() {
   return (
     <div className="site-shell">
       <RouteScrollManager />
-      <DocumentMeta products={allProducts} />
+      <DocumentMeta products={allProducts} signedIn={Boolean(customerSession)} />
       <header className="site-header">
         <Link className={`header-brand${headerBrandVisible ? ' visible' : ''}`} to="/" aria-label="Nexgen Packaging Group home">
           <img src={nexgenLogo} alt="" />
@@ -623,8 +630,8 @@ function App() {
           <NavLink className="account-action" to="/account" aria-label={customerSession ? 'Open customer account' : 'Customer sign in'}>
             <UserRound size={19} />
           </NavLink>
-          <Link className="header-action" to="/cart" aria-label="Open quote cart">
-            <ShoppingCart size={17} />
+          <Link className="header-action" to="/cart" aria-label={`Open quote cart, ${cart.length} items`}>
+            <ShoppingCart size={17} />{cart.length > 0 && <span className="cart-count" aria-hidden="true">{cart.length}</span>}
           </Link>
         </div>
       </header>
@@ -784,6 +791,7 @@ function App() {
                 contact={buyer}
                 requestReady={quoteRequestReady}
                 requestNumber={quoteRequestNumber}
+                receipt={quoteReceipt}
                 requestLoading={quoteRequestLoading}
                 requestError={quoteRequestError}
                 onContactChange={updateQuoteContact}
@@ -802,6 +810,7 @@ function App() {
             element={
               customerSession && returningToCart ? <Navigate to="/cart" replace /> : customerSession ? (
                 <CustomerAccountPage
+                  token={customerSessionToken}
                   account={customerAccount}
                   quoteRequests={customerQuoteHistory}
                   quoteRequestsStatus={customerQuoteHistoryStatus}
@@ -920,6 +929,7 @@ function App() {
         </Routes>
       </main>
 
+      {cartNotice && pathname !== '/cart' && pathname !== '/account' && <aside className="cart-added-notice" role="status"><strong>{cartNotice}</strong><button type="button" onClick={() => setCartNotice('')}>Keep shopping</button><Link to="/cart" onClick={() => setCartNotice('')}>Review quote</Link></aside>}
       <SiteFooter />
     </div>
   )
@@ -947,12 +957,16 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
   const selectedProduct = cupProducts.find((product) => product.id === selectedProductId) || cupProducts[0]
   const productSizes = selectedProduct?.sizes.length ? selectedProduct.sizes : ['Size confirmed with quote']
   const [selectedSize, setSelectedSize] = useState(productSizes[0] || '')
-  const [cases, setCases] = useState(100)
+  const [cases, setCases] = useState(1)
+  const [studioMaterial, setStudioMaterial] = useState('')
+  const materialChoices = selectedProduct?.materials?.length ? selectedProduct.materials : [selectedProduct?.material || '']
+  const selectedStudioMaterial = materialChoices.includes(studioMaterial) ? studioMaterial : materialChoices[0]
   const [printColors, setPrintColors] = useState<PrintColorCount>(1)
   const [inkColors, setInkColors] = useState(defaultInkColors)
   const [artworkName, setArtworkName] = useState('')
   const [artworkPreview, setArtworkPreview] = useState<string | null>(null)
   const [artworkFile, setArtworkFile] = useState<File | undefined>()
+  const [additionalArtworkFiles, setAdditionalArtworkFiles] = useState<File[]>([])
   const [artworkError, setArtworkError] = useState('')
   const [artworkAdjustment, setArtworkAdjustment] = useState<ArtworkAdjustment>(defaultArtworkAdjustment)
   const [dragStart, setDragStart] = useState<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null)
@@ -983,6 +997,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
     const product = cupProducts.find((item) => item.id === productId)
     if (!product) return
     setSelectedProductId(productId)
+    setStudioMaterial('')
     setSelectedSize(product.sizes[0] || 'Size confirmed with quote')
     setPrintColors((current) => Math.min(current, Math.max(1, product.maxPrintColors || 4)) as PrintColorCount)
     setAdded(false)
@@ -991,10 +1006,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
   const uploadArtwork = (file: File | undefined) => {
     if (!file) return
     try {
-      const { extension } = artworkFileDetails(file)
-      if (!['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extension)) {
-        throw new Error('Choose a PNG, JPG, WebP, or SVG file for the cup preview.')
-      }
+      artworkFileDetails(file)
     } catch (error) {
       setArtworkError(error instanceof Error ? error.message : 'Choose a supported artwork file.')
       return
@@ -1002,6 +1014,9 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
     setArtworkError('')
     setArtworkFile(file)
     setArtworkName(file.name)
+    if (!/\.(png|jpe?g|svg|webp)$/i.test(file.name)) {
+      setArtworkPreview(null); setArtworkAdjustment(defaultArtworkAdjustment); setAdded(false); return
+    }
     const reader = new FileReader()
     reader.onload = () => setArtworkPreview(typeof reader.result === 'string' ? reader.result : null)
     reader.onerror = () => setArtworkError('This artwork could not be previewed. Try another file.')
@@ -1050,7 +1065,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
               <img src={selectedProduct.image} alt="" />
               <div>
                 <strong>{selectedProduct.name}</strong>
-                <span>{selectedProduct.material}</span>
+                <span>{selectedStudioMaterial}</span>
                 <small>{selectedProduct.casePack}</small>
               </div>
             </div>
@@ -1064,6 +1079,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
                 <p>NexGen will confirm minimums and final case pack.</p>
               </div>
             </div>
+            <label>Material<select value={selectedStudioMaterial} onChange={event => {setStudioMaterial(event.target.value);setAdded(false)}}>{materialChoices.map(material => <option key={material}>{material}</option>)}</select></label>
             <div className="custom-size-quantity-grid">
               <label>
                 Size or format
@@ -1073,13 +1089,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
               </label>
               <label>
                 Estimated cases
-                <input
-                  min={1}
-                  max={10000}
-                  type="number"
-                  value={cases}
-                  onChange={(event) => { setCases(Math.max(1, Number(event.target.value) || 1)); setAdded(false) }}
-                />
+                <select value={cases} onChange={event => { setCases(Number(event.target.value)); setAdded(false) }}>{quoteQuantityOptions.map(quantity => <option key={quantity} value={quantity}>{quantity} cases</option>)}</select>
               </label>
             </div>
           </div>
@@ -1089,7 +1099,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
               <span>3</span>
               <div>
                 <h3>Add artwork</h3>
-                <p>PNG, JPG, SVG, or WebP files work for this placement preview.</p>
+                <p>PNG, JPG, SVG, WebP, PDF, AI or EPS. Maximum 10 MB per file. PDF, AI and EPS are attached without a placement preview.</p>
               </div>
             </div>
             <label className="custom-artwork-upload">
@@ -1098,12 +1108,14 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
               <small>{artworkName ? 'Choose a different file' : 'High-resolution or vector artwork is recommended'}</small>
               <input
                 type="file"
-                accept=".png,.jpg,.jpeg,.svg,.webp"
+                accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps"
                 onChange={(event) => uploadArtwork(event.target.files?.[0])}
               />
             </label>
             {artworkError ? <p className="cup-artwork-error" role="alert">{artworkError}</p> : null}
 
+            {artworkFile && !artworkPreview && <p role="status">Preview unavailable. {artworkName} is attached for prepress review.</p>}
+            <AdditionalArtworkPicker files={additionalArtworkFiles} onChange={files => {setAdditionalArtworkFiles(files);setAdded(false)}} />
             <div className="custom-artwork-controls">
               <label>
                 Logo size
@@ -1200,12 +1212,13 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
             type="button"
             onClick={() => {
               onAdd(selectedProduct.id, cases, selectedSize, {
-                material: selectedProduct.material,
+                material: selectedStudioMaterial,
                 printColors: activePrintColors,
                 inkColors: inkColors.slice(0, activePrintColors),
                 artworkName: artworkName || 'Artwork to follow',
                 artworkPreview: artworkPreview || undefined,
                 artworkFile,
+                additionalArtworkFiles,
                 artworkPosition: artworkAdjustment,
               })
               setAdded(true)
@@ -1691,6 +1704,8 @@ function ProductDetailContent({ product, products, cartItem, editingLineId, onAd
   const [artworkName, setArtworkName] = useState(cartItem?.artworkName || '')
   const [artworkPreview, setArtworkPreview] = useState(cartItem?.artworkPreview || '')
   const [artworkFile, setArtworkFile] = useState<File | undefined>(cartItem?.artworkFile)
+  const [additionalArtworkFiles, setAdditionalArtworkFiles] = useState<File[]>(cartItem?.additionalArtworkFiles || [])
+  const [pendingArtworkNames, setPendingArtworkNames] = useState(() => (cartItem?.additionalArtworkNames || []).filter(name => !(cartItem?.additionalArtworkFiles || []).some(file => file.name === name)))
   const [artworkError, setArtworkError] = useState('')
   const [mobileStep, setMobileStep] = useState(1)
   const printableProduct = Boolean(product.maxPrintColors)
@@ -1737,6 +1752,11 @@ function ProductDetailContent({ product, products, cartItem, editingLineId, onAd
   const addConfiguredProduct = () => {
     if (isEntreeFamily && !selectedComponentSpec) return
     const includeArtwork = printableProduct && printColors > 0
+    const missingArtwork = pendingArtworkNames.filter(name => !additionalArtworkFiles.some(file => file.name === name))
+    if (includeArtwork && missingArtwork.length) {
+      setArtworkError(`Reattach or remove these saved artwork selections: ${missingArtwork.join(', ')}.`)
+      return
+    }
     onAdd(product.id, selectedQuantity, selectedSize, {
       material: selectedMaterial,
       component: selectedComponentSpec?.component,
@@ -1747,6 +1767,7 @@ function ProductDetailContent({ product, products, cartItem, editingLineId, onAd
       artworkName: includeArtwork ? artworkName : undefined,
       artworkPreview: includeArtwork ? artworkPreview : undefined,
       artworkFile: includeArtwork ? artworkFile : undefined,
+      additionalArtworkFiles: includeArtwork ? additionalArtworkFiles : undefined,
       artworkPosition: editingLineId && printableProduct && printColors > 0 ? cartItem?.artworkPosition : undefined,
     }, editingLineId)
   }
@@ -1951,6 +1972,9 @@ function ProductDetailContent({ product, products, cartItem, editingLineId, onAd
                       <input type="file" accept=".ai,.eps,.pdf,.png,.jpg,.jpeg,.svg,image/*" onChange={(event) => selectArtwork(event.target.files?.[0])} />
                     </label>
                     {artworkPreview ? <div className="cup-artwork-preview"><ArtworkImage file={artworkFile} alt="Uploaded product artwork preview" /><span>Artwork preview</span></div> : null}
+                    {artworkFile && !artworkPreview && <p role="status">Preview unavailable. {artworkName} is attached for prepress review.</p>}
+                    <AdditionalArtworkPicker files={additionalArtworkFiles} onChange={setAdditionalArtworkFiles} />
+                    {pendingArtworkNames.filter(name => !additionalArtworkFiles.some(file => file.name === name)).map((name, index) => <p key={index}>Reattach {name} after reloading, or <button type="button" onClick={() => setPendingArtworkNames(names => names.filter(value => value !== name))}>remove this saved selection</button>.</p>)}
                     {artworkError ? <p className="cup-artwork-error" role="alert">{artworkError}</p> : null}
                   </div>
                 ) : null}

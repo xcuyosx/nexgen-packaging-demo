@@ -16,6 +16,8 @@ test('configured quote lines survive refresh without storing temporary artwork d
     artworkName: 'logo.png',
     artworkPreview: 'data:image/png;base64,large-preview',
     artworkFile: new File(['preview'], 'logo.png', { type: 'image/png' }),
+    additionalArtworkNames: ['prepress.pdf'],
+    additionalArtworkFiles: [new File(['%PDF-1.4'], 'prepress.pdf', { type: 'application/pdf' })],
   }
   const saved = serializeCart([item])
   assert.equal(saved.includes('large-preview'), false)
@@ -27,6 +29,9 @@ test('configured quote lines survive refresh without storing temporary artwork d
   assert.equal(restored.artworkName, 'logo.png')
   assert.equal('artworkPreview' in restored, false)
   assert.equal('artworkFile' in restored, false)
+  assert.deepEqual(restored.additionalArtworkNames, ['prepress.pdf'])
+  assert.equal('additionalArtworkFiles' in restored, false)
+  assert.equal(saved.includes('%PDF'), false)
 })
 
 test('invalid stored cart data cannot create quote lines', () => {

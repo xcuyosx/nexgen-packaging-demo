@@ -13,6 +13,8 @@ export type CartConfiguration = {
   artworkName?: string
   artworkPreview?: string
   artworkFile?: File
+  additionalArtworkFiles?: File[]
+  additionalArtworkNames?: string[]
   artworkPosition?: {
     size: number
     x: number
@@ -35,6 +37,8 @@ export type CartItem = {
   artworkName?: string
   artworkPreview?: string
   artworkFile?: File
+  additionalArtworkFiles?: File[]
+  additionalArtworkNames?: string[]
   artworkPosition?: CartConfiguration['artworkPosition']
 }
 
@@ -57,6 +61,8 @@ function configuredVariant(productId: string, size: string | undefined, configur
     artworkName: configuration.artworkName,
     artworkPreview: configuration.artworkPreview,
     artworkFile: configuration.artworkFile,
+    additionalArtworkFiles: configuration.additionalArtworkFiles,
+    additionalArtworkNames: configuration.additionalArtworkNames || configuration.additionalArtworkFiles?.map(file => file.name),
     artworkPosition: configuration.artworkPosition,
   }
 }
@@ -78,6 +84,9 @@ function sameCartVariant(left: CartVariant, right: CartVariant): boolean {
     && left.artworkName === right.artworkName
     && left.artworkPreview === right.artworkPreview
     && left.artworkFile === right.artworkFile
+    && JSON.stringify(left.additionalArtworkNames || []) === JSON.stringify(right.additionalArtworkNames || [])
+    && (left.additionalArtworkFiles || []).length === (right.additionalArtworkFiles || []).length
+    && (left.additionalArtworkFiles || []).every((file,index) => file === right.additionalArtworkFiles?.[index])
     && (leftPosition === rightPosition || Boolean(leftPosition && rightPosition
       && leftPosition.size === rightPosition.size
       && leftPosition.x === rightPosition.x
@@ -142,6 +151,7 @@ export function buildQuoteRequestLine(item: CartLine): CustomerQuoteRequestLine 
     printColors: item.printColors,
     inkColors: item.inkColors || [],
     artworkName: item.artworkName || '',
+    additionalArtwork: item.additionalArtworkNames?.map(name => ({name})),
     artworkPosition: item.artworkPosition,
   }
 }
@@ -153,5 +163,6 @@ export type QuoteContact = {
   purchaseOrder: string
   billingProfileId: string
   receivingLocationId: string
+  postalCode: string
   notes: string
 }

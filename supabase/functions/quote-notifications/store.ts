@@ -10,7 +10,8 @@ export function createQuoteStore(url: string, serviceKey: string, request: typeo
     return await response.json()
   }
   const patch = async (job: QuoteJob, body: unknown) => {
-    const rows = await call(`/rest/v1/quote_notification_jobs?request_id=eq.${job.request_id}&kind=eq.${job.kind}&claim_id=eq.${job.claim_id}&claim_until=gt.${encodeURIComponent(new Date().toISOString())}&select=request_id`, 'PATCH', body)
+    const identity = job.notification_id ? `notification_id=eq.${job.notification_id}` : `request_id=eq.${job.request_id}&kind=eq.${job.kind}`
+    const rows = await call(`/rest/v1/quote_notification_jobs?${identity}&claim_id=eq.${job.claim_id}&claim_until=gt.${encodeURIComponent(new Date().toISOString())}&select=request_id`, 'PATCH', body)
     if (!Array.isArray(rows) || rows.length !== 1) throw new Error('Quote notification lease expired')
   }
   return {

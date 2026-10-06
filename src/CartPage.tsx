@@ -5,6 +5,8 @@ import type { CustomerAccount } from './customerAccount'
 import type { CartLine, QuoteContact } from './storefrontCart'
 import { artworkNeedsReattachment } from './artworkUpload'
 import { ArtworkImage } from './ArtworkImage'
+import { QuoteRequestSummary } from './QuoteRequestSummary'
+import type { QuoteReceipt } from './QuoteRequestSummary'
 
 type CartPageProps = {
   items: CartLine[]
@@ -14,6 +16,7 @@ type CartPageProps = {
   contact: QuoteContact
   requestReady: boolean
   requestNumber: string
+  receipt: QuoteReceipt | null
   requestLoading: boolean
   requestError: string
   onContactChange: (field: keyof QuoteContact, value: string) => void
@@ -30,6 +33,7 @@ export function CartPage({
   contact,
   requestReady,
   requestNumber,
+  receipt,
   requestLoading,
   requestError,
   onContactChange,
@@ -37,6 +41,8 @@ export function CartPage({
   onRemove,
   onSubmit,
 }: CartPageProps) {
+  const billing = account.billingProfiles.find(profile => profile.id === contact.billingProfileId)
+  const shipping = account.receivingLocations.find(location => location.id === contact.receivingLocationId)
   return (
     <section className="cart-page page-section">
       <div className="cart-page-shell">
@@ -51,7 +57,8 @@ export function CartPage({
             <Check size={36} />
             <h2>Quote request received</h2>
             <p>Request <strong>{requestNumber}</strong> is with NexGen for review. You can track its status in your account.</p>
-            <Link className="primary-button" to="/account?view=quotes">Track your request <ChevronRight size={17} /></Link>
+            {receipt && <QuoteRequestSummary request={receipt} />}
+            <Link className="primary-button" to={`/account?view=quotes&request=${encodeURIComponent(requestNumber)}`}>Track your request <ChevronRight size={17} /></Link>
           </section>
         ) : items.length === 0 ? (
           <section className="cart-page-empty">
@@ -89,10 +96,12 @@ export function CartPage({
                       {item.product.imageNote && item.component !== 'Lid' ? <small>Image: {item.product.imageNote}</small> : null}
                       {item.product.id === 'plastic-entree-containers' && !item.component ? <small role="alert">Remove this line and choose a specific base or lid before requesting pricing.</small> : null}
                       {artworkNeedsReattachment(item.artworkName, item.artworkFile) ? <small role="alert">Reattach {item.artworkName} on the product page before requesting pricing.</small> : null}
+                      {(item.additionalArtworkNames || []).filter(name => !(item.additionalArtworkFiles || []).some(file => file.name === name)).map((name, index) => <small role="alert" key={index}>Reattach {name} on the product page before requesting pricing.</small>)}
                       {item.printColors > 0 ? (
                         <div className="cart-print-summary">
                           <FileImage size={15} />
                           <span>{item.printColors}-color printing{item.artworkName ? ` · ${item.artworkName}` : ' · Artwork to follow'}</span>
+                          {item.additionalArtworkNames?.length ? <span>{item.additionalArtworkNames.join(', ')}</span> : null}
                           {item.inkColors?.length ? (
                             <span className="cart-ink-swatches" aria-label={`Requested print colors: ${item.inkColors.join(', ')}`}>
                               {item.inkColors.map((color, index) => (
@@ -141,28 +150,35 @@ export function CartPage({
 
               {signedIn ? <form className="quote-request-form" onSubmit={onSubmit}>
                 <label>Name<input required autoComplete="name" value={contact.name} onChange={(event) => onContactChange('name', event.target.value)} /></label>
-                <label>Company<input required autoComplete="organization" value={contact.company} onChange={(event) => onContactChange('company', event.target.value)} /></label>
+                <label>Company<input required autoComplete="organization" value={contact.company} readOnly aria-readonly="true" /></label>
                 <label>Email<input required type="email" autoComplete="email" value={contact.email} onChange={(event) => onContactChange('email', event.target.value)} /></label>
                 <label>PO / reference <span>Optional</span><input value={contact.purchaseOrder} onChange={(event) => onContactChange('purchaseOrder', event.target.value)} /></label>
 
                 {account.billingProfiles.length > 0 ? (
                   <label>
                     Bill to
-                    <select value={contact.billingProfileId} onChange={(event) => onContactChange('billingProfileId', event.target.value)}>
+                    <select required value={contact.billingProfileId} onChange={(event) => onContactChange('billingProfileId', event.target.value)}>
+                      <option value="">Select a billing profile</option>
                       {account.billingProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label} · {profile.preference}</option>)}
                     </select>
                   </label>
                 ) : null}
 
+                {billing && <div className="quote-address-preview" aria-label="Selected billing profile"><strong>{billing.legalName}</strong><span>{billing.billingEmail}</span><span>{billing.preference}</span></div>}
+                {!account.billingProfiles.length && <p><Link to="/account?view=billing">Add a billing profile</Link></p>}
                 {account.receivingLocations.length > 0 ? (
                   <label>
                     Ship to
-                    <select value={contact.receivingLocationId} onChange={(event) => onContactChange('receivingLocationId', event.target.value)}>
+                    <select required value={contact.receivingLocationId} onChange={(event) => onContactChange('receivingLocationId', event.target.value)}>
+                      <option value="">Select a delivery location</option>
                       {account.receivingLocations.map((location) => <option key={location.id} value={location.id}>{location.label} · {location.city}, {location.state}</option>)}
                     </select>
                   </label>
                 ) : null}
 
+                {shipping && <div className="quote-address-preview" aria-label="Selected delivery location"><strong>{shipping.label}</strong><span>{shipping.address}, {shipping.city}, {shipping.state} {shipping.postalCode}</span><span>{[shipping.contact, shipping.phone, shipping.receivingHours, shipping.instructions].filter(Boolean).join(' · ')}</span></div>}
+                {!account.receivingLocations.length && <><p><Link to="/account?view=locations">Add a delivery location</Link>, or provide a ZIP code for this quote.</p><label>Delivery ZIP / postal code<input required autoComplete="postal-code" value={contact.postalCode} onChange={event => onContactChange('postalCode',event.target.value)} /></label></>}
+                <p>We follow up within 1 business day.</p>
                 <label className="quote-request-notes">Notes <span>Optional</span><textarea rows={3} value={contact.notes} onChange={(event) => onContactChange('notes', event.target.value)} /></label>
 
                 {requestError ? <p className="quote-request-error" role="alert">{requestError}</p> : null}

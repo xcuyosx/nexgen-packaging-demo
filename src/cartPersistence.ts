@@ -32,6 +32,7 @@ export function parseStoredCart(raw: string | null): CartItem[] {
         inkColors: Array.isArray(item.inkColors) ? item.inkColors.filter((color): color is string => typeof color === 'string') : undefined,
         artworkName: typeof item.artworkName === 'string' ? item.artworkName : undefined,
         artworkPosition,
+        additionalArtworkNames: Array.isArray(item.additionalArtworkNames) ? item.additionalArtworkNames.filter((name): name is string => typeof name === 'string') : [],
       }]
     })
   } catch {
@@ -40,7 +41,7 @@ export function parseStoredCart(raw: string | null): CartItem[] {
 }
 
 export function serializeCart(cart: CartItem[]): string {
-  return JSON.stringify(cart.map((item) => ({ ...item, artworkPreview: undefined, artworkFile: undefined })))
+  return JSON.stringify(cart.map((item) => ({ ...item, artworkPreview: undefined, artworkFile: undefined, additionalArtworkFiles: undefined })))
 }
 
 export function loadCart(): CartItem[] {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -22,11 +22,14 @@ import type {
   CustomerQuoteHistoryEntry,
 } from './customerAccount'
 import { createCustomerRecordId } from './customerAccount'
+import { customerStatus } from './quoteForm'
+import { CustomerQuoteDetail } from './CustomerQuoteDetail'
 
 type AccountView = 'overview' | 'profile' | 'quotes' | 'billing' | 'locations'
 
 type CustomerAccountPageProps = {
   account: CustomerAccount
+  token: string
   quoteRequests: CustomerQuoteHistoryEntry[]
   quoteRequestsStatus: 'loading' | 'ready' | 'error'
   quoteRequestsError: string
@@ -111,11 +114,11 @@ function AccountDetailHeader({ title, description, onBack, action }: AccountDeta
   )
 }
 
-export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatus, quoteRequestsError, onRefreshQuoteRequests, onSave, onSignOut, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
+export function CustomerAccountPage({ account, token, quoteRequests, quoteRequestsStatus, quoteRequestsError, onRefreshQuoteRequests, onSave, onSignOut, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const activeView = accountViewFromSearch(location.search)
-  const setActiveView = (view: AccountView) => navigate(view === 'overview' ? '/account' : `/account?view=${view}`)
+  const setActiveView = (view: AccountView) => { if (!unsaved || window.confirm('Leave without saving your current form?')) navigate(view === 'overview' ? '/account' : `/account?view=${view}`) }
   const [draft, setDraft] = useState<{ value: CustomerAccount; original: CustomerAccount } | null>(null)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -123,8 +126,21 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
   const [showBillingForm, setShowBillingForm] = useState(false)
   const [showLocationForm, setShowLocationForm] = useState(false)
   const [editingLocationId, setEditingLocationId] = useState('')
+  const [editingBillingId, setEditingBillingId] = useState('')
+  const savingRef = useRef(false)
   const [billingForm, setBillingForm] = useState(emptyBillingProfile)
   const [locationForm, setLocationForm] = useState(emptyLocation)
+  const unsaved = Boolean(draft || (showBillingForm && JSON.stringify(billingForm) !== JSON.stringify(emptyBillingProfile)) || (showLocationForm && JSON.stringify(locationForm) !== JSON.stringify(emptyLocation)))
+  useEffect(() => {
+    if (!unsaved) return
+    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    const followLink = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('a[href]') && !window.confirm('Leave without saving your current form?')) { event.preventDefault(); event.stopPropagation() }
+    }
+    window.addEventListener('beforeunload', unload)
+    document.addEventListener('click', followLink, true)
+    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', followLink, true) }
+  }, [unsaved])
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
@@ -132,8 +148,7 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
 
   const currentAccount = draft?.value ?? account
   const updateDraft = (updater: (current: CustomerAccount) => CustomerAccount) => {
-    setSaved(false)
-    setDraft((current) => ({ original: current?.original ?? structuredClone(account), value: updater(current?.value ?? structuredClone(account)) }))
+    void saveAccount(updater(currentAccount))
   }
 
   const accountName = currentAccount.companyName || 'Your NexGen account'
@@ -142,19 +157,26 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
     return source.split(/\s+/).slice(0, 2).map((word) => word[0]).join('').toUpperCase()
   }, [currentAccount.companyName, currentAccount.contactName])
 
-  const saveAccount = async () => {
-    if (saving) return
+  const saveAccount = async (next = currentAccount) => {
+    if (savingRef.current) return false
+    savingRef.current = true
     setSaving(true)
     setSaved(false)
     setSaveError('')
     try {
-      await onSave(currentAccount, draft?.original ?? account)
+      await onSave(next, draft?.original ?? account)
       setDraft(null)
       setSaved(true)
-      window.setTimeout(() => setSaved(false), 1800)
+      setShowBillingForm(false); setShowLocationForm(false)
+      setBillingForm(emptyBillingProfile); setLocationForm(emptyLocation)
+      setEditingBillingId(''); setEditingLocationId('')
+      return true
     } catch (error) {
+      setDraft({ value: next, original: draft?.original ?? account })
       setSaveError(error instanceof Error ? error.message : 'Unable to save your customer account right now.')
+      return false
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
@@ -166,30 +188,22 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
     </p>
   ) : null
 
-  const addBillingProfile = (event: React.FormEvent<HTMLFormElement>) => {
+  const addBillingProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    updateDraft((current) => ({
-      ...current,
-      billingProfiles: [
-        ...current.billingProfiles,
-        { ...billingForm, id: createCustomerRecordId('BILL') },
-      ],
-    }))
-    setBillingForm(emptyBillingProfile)
-    setShowBillingForm(false)
+    const id = editingBillingId || createCustomerRecordId('BILL')
+    setEditingBillingId(id)
+    const previous = currentAccount.billingProfiles.find(item => item.id === id)
+    const profile = { ...billingForm, id, isDefault: previous?.isDefault || currentAccount.billingProfiles.length === 0 }
+    await saveAccount({ ...currentAccount, billingProfiles: previous ? currentAccount.billingProfiles.map(item => item.id === id ? profile : item) : [...currentAccount.billingProfiles, profile] })
   }
 
-  const addLocation = (event: React.FormEvent<HTMLFormElement>) => {
+  const addLocation = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    updateDraft((current) => ({
-      ...current,
-      receivingLocations: editingLocationId
-        ? current.receivingLocations.map((location) => location.id === editingLocationId ? { ...locationForm, id: editingLocationId } : location)
-        : [...current.receivingLocations, { ...locationForm, id: createCustomerRecordId('SHIP') }],
-    }))
-    setLocationForm(emptyLocation)
-    setEditingLocationId('')
-    setShowLocationForm(false)
+    const id = editingLocationId || createCustomerRecordId('SHIP')
+    setEditingLocationId(id)
+    const previous = currentAccount.receivingLocations.find(item => item.id === id)
+    const entry = { ...locationForm, id, isDefault: previous?.isDefault || currentAccount.receivingLocations.length === 0 }
+    await saveAccount({ ...currentAccount, receivingLocations: previous ? currentAccount.receivingLocations.map(item => item.id === id ? entry : item) : [...currentAccount.receivingLocations, entry] })
   }
 
   const startNewLocation = () => {
@@ -219,6 +233,7 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
   return (
     <section className="account-page page-section">
       <div className="account-shell">
+        {(saving || saved) && <p className="account-save-status" role="status">{saving ? 'Saving…' : 'Saved to your NexGen account.'}</p>}
         {activeView === 'overview' && (
           <>
             <header className="account-home-header">
@@ -320,7 +335,8 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
               onBack={returnToAccount}
               action={<Link className="account-primary-action" to="/products"><Plus size={17} /> New request</Link>}
             />
-            <section className="account-content-card" aria-label="Quote request history">
+            {new URLSearchParams(location.search).get('request') ? <CustomerQuoteDetail token={token} requestNumber={new URLSearchParams(location.search).get('request')!} refresh={quoteRequests} /> : <section className="account-content-card" aria-label="Quote request history">
+              <button type="button" onClick={onRefreshQuoteRequests} disabled={quoteRequestsStatus === 'loading'}>{quoteRequestsStatus === 'loading' ? 'Refreshing…' : 'Refresh requests'}</button>
               {quoteRequestsStatus === 'loading' && !quoteRequests.length ? (
                 <div className="account-empty-state"><ReceiptText size={30} /><strong>Loading quote requests…</strong></div>
               ) : quoteRequestsStatus === 'error' && !quoteRequests.length ? (
@@ -344,15 +360,15 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
                     <article className="account-quote-summary" key={request.requestNumber}>
                       <div className="account-quote-summary-header">
                         <div>
-                          <strong>{request.requestNumber}</strong>
+                          <Link to={`/account?view=quotes&request=${encodeURIComponent(request.requestNumber)}`}>{request.requestNumber}</Link>
                           <small>Submitted {formatAccountDate(request.submittedAt)}</small>
                         </div>
-                        <span className="account-quote-status">{request.status}</span>
+                        <span className="account-quote-status">{customerStatus(request.status)}</span>
                       </div>
                       <ul>
                         {request.items.map((item, index) => (
                           <li key={`${item.sku}-${index}`}>
-                            <span>{item.sku ? `Item ${item.sku} · ` : ''}{item.productName}</span>
+                            <span>{item.sku ? `Item ${item.sku} · ` : ''}{item.productName}<small>{[item.size, item.material, item.printColors ? `${item.printColors}-color printing` : 'Unprinted', item.artworkName].filter(Boolean).join(' · ')}</small></span>
                             <strong>{item.cases} case{item.cases === 1 ? '' : 's'}</strong>
                           </li>
                         ))}
@@ -362,7 +378,7 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
                   ))}
                 </div>
               )}
-            </section>
+            </section>}
           </>
         )}
 
@@ -372,23 +388,23 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
               title="Billing preferences"
               description="Save billing contacts and purchasing preferences for your quote requests."
               onBack={returnToAccount}
-              action={<button className="account-primary-action" type="button" disabled={saving} onClick={() => void saveAccount()}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}</button>}
+              action={<button className="account-primary-action" type="button" disabled={saving || !draft} onClick={() => void saveAccount()}>{saving ? 'Saving…' : draft ? 'Retry save' : 'Saved'}</button>}
             />
             {saveErrorNotice}
             <div className="account-detail-stack">
               <section className="account-content-card">
                 <div className="account-section-heading">
                   <div><h2>Billing profiles</h2><p>Use different billing details for divisions, brands, or purchasing programs. Selecting invoice or net terms is a preference; credit terms require NexGen approval.</p></div>
-                  <button type="button" onClick={() => setShowBillingForm((open) => !open)}><Plus size={17} /> Add</button>
+                  <button type="button" disabled={saving} onClick={() => { setEditingBillingId(''); setBillingForm(emptyBillingProfile); setShowBillingForm(true) }}><Plus size={17} /> Add</button>
                 </div>
 
                 {showBillingForm && (
                   <form className="account-entry-form" onSubmit={addBillingProfile}>
-                    <label>Profile name<input required placeholder="Corporate, Midwest division..." value={billingForm.label} onChange={(event) => setBillingForm((current) => ({ ...current, label: event.target.value }))} /></label>
-                    <label>Legal company name<input required value={billingForm.legalName} onChange={(event) => setBillingForm((current) => ({ ...current, legalName: event.target.value }))} /></label>
-                    <label>Billing email<input required type="email" value={billingForm.billingEmail} onChange={(event) => setBillingForm((current) => ({ ...current, billingEmail: event.target.value }))} /></label>
-                    <label>Billing type<select value={billingForm.preference} onChange={(event) => setBillingForm((current) => ({ ...current, preference: event.target.value as BillingPreference }))}><option>Credit card</option><option>Invoice / net terms</option><option>Purchase order</option></select></label>
-                    <button type="submit">Add billing profile</button>
+                    <label>Profile name<input disabled={saving} required placeholder="Corporate, Midwest division..." value={billingForm.label} onChange={(event) => setBillingForm((current) => ({ ...current, label: event.target.value }))} /></label>
+                    <label>Legal company name<input disabled={saving} required value={billingForm.legalName} onChange={(event) => setBillingForm((current) => ({ ...current, legalName: event.target.value }))} /></label>
+                    <label>Billing email<input disabled={saving} required type="email" value={billingForm.billingEmail} onChange={(event) => setBillingForm((current) => ({ ...current, billingEmail: event.target.value }))} /></label>
+                    <label>Billing type<select disabled={saving} value={billingForm.preference} onChange={(event) => setBillingForm((current) => ({ ...current, preference: event.target.value as BillingPreference }))}><option>Credit card</option><option>Invoice / net terms</option><option>Purchase order</option></select></label>
+                    <button type="submit" disabled={saving}>{saving ? 'Saving…' : editingBillingId ? 'Save billing profile' : 'Add billing profile'}</button>
                   </form>
                 )}
 
@@ -396,8 +412,11 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
                   {currentAccount.billingProfiles.map((profile) => (
                     <div className="account-record-row" key={profile.id}>
                       <span className="account-menu-icon"><ReceiptText size={20} /></span>
-                      <div><strong>{profile.label}</strong><span>{profile.legalName}</span><small>{profile.preference} · {profile.billingEmail}</small></div>
-                      <button className="account-remove-button" type="button" aria-label={`Remove ${profile.label}`} onClick={() => updateDraft((current) => ({ ...current, billingProfiles: current.billingProfiles.filter((item) => item.id !== profile.id) }))}><Trash2 size={17} /></button>
+                      <div><strong>{profile.label}{profile.isDefault ? ' · Default' : ''}</strong><span>{profile.legalName}</span><small>{profile.preference} · {profile.billingEmail}</small></div>
+                      <div className="account-record-actions">
+                      <button className="account-edit-button" type="button" aria-label={`Edit ${profile.label}`} disabled={saving} onClick={() => { setEditingBillingId(profile.id); setBillingForm({label:profile.label,legalName:profile.legalName,billingEmail:profile.billingEmail,preference:profile.preference}); setShowBillingForm(true) }}><Pencil size={16} /></button>
+                      {!profile.isDefault && <button type="button" disabled={saving} onClick={() => updateDraft(current => ({...current,billingProfiles:current.billingProfiles.map(item => ({...item,isDefault:item.id === profile.id}))}))}>Make default</button>}
+                      <button className="account-remove-button" disabled={saving} type="button" aria-label={`Remove ${profile.label}`} onClick={() => updateDraft((current) => ({ ...current, billingProfiles: current.billingProfiles.filter((item) => item.id !== profile.id) }))}><Trash2 size={17} /></button></div>
                     </div>
                   ))}
                   {currentAccount.billingProfiles.length === 0 ? <p className="account-inline-empty">No billing profiles saved.</p> : null}
@@ -413,27 +432,27 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
               title="Delivery locations"
               description="Save shipping addresses, receiving contacts, hours, and dock instructions."
               onBack={returnToAccount}
-              action={<button className="account-primary-action" type="button" disabled={saving} onClick={() => void saveAccount()}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}</button>}
+              action={<button className="account-primary-action" type="button" disabled={saving || !draft} onClick={() => void saveAccount()}>{saving ? 'Saving…' : draft ? 'Retry save' : 'Saved'}</button>}
             />
             {saveErrorNotice}
             <section className="account-content-card">
               <div className="account-section-heading">
                 <div><h2>Saved locations</h2><p>Add every warehouse, restaurant group, or distribution point used for delivery.</p></div>
-                <button type="button" onClick={startNewLocation}><Plus size={17} /> Add</button>
+                <button type="button" disabled={saving} onClick={startNewLocation}><Plus size={17} /> Add</button>
               </div>
 
               {showLocationForm && (
                 <form className="account-entry-form location-form" onSubmit={addLocation}>
-                  <label>Location name<input required placeholder="St. Louis warehouse" value={locationForm.label} onChange={(event) => setLocationForm((current) => ({ ...current, label: event.target.value }))} /></label>
-                  <label>Street address<input required autoComplete="street-address" value={locationForm.address} onChange={(event) => setLocationForm((current) => ({ ...current, address: event.target.value }))} /></label>
-                  <label>City<input required autoComplete="address-level2" value={locationForm.city} onChange={(event) => setLocationForm((current) => ({ ...current, city: event.target.value }))} /></label>
-                  <label>State<input required autoComplete="address-level1" value={locationForm.state} onChange={(event) => setLocationForm((current) => ({ ...current, state: event.target.value }))} /></label>
-                  <label>ZIP code<input required autoComplete="postal-code" value={locationForm.postalCode} onChange={(event) => setLocationForm((current) => ({ ...current, postalCode: event.target.value }))} /></label>
-                  <label>Receiving contact<input value={locationForm.contact} onChange={(event) => setLocationForm((current) => ({ ...current, contact: event.target.value }))} /></label>
-                  <label>Receiving phone<input type="tel" value={locationForm.phone} onChange={(event) => setLocationForm((current) => ({ ...current, phone: event.target.value }))} /></label>
-                  <label>Receiving hours<input placeholder="Mon–Fri, 8:00–3:00" value={locationForm.receivingHours} onChange={(event) => setLocationForm((current) => ({ ...current, receivingHours: event.target.value }))} /></label>
-                  <label className="location-instructions">Delivery instructions<textarea rows={2} placeholder="Dock, appointment, liftgate, or check-in details" value={locationForm.instructions} onChange={(event) => setLocationForm((current) => ({ ...current, instructions: event.target.value }))} /></label>
-                  <button type="submit">{editingLocationId ? 'Update location' : 'Add location'}</button>
+                  <label>Location name<input disabled={saving} required placeholder="St. Louis warehouse" value={locationForm.label} onChange={(event) => setLocationForm((current) => ({ ...current, label: event.target.value }))} /></label>
+                  <label>Street address<input disabled={saving} required autoComplete="street-address" value={locationForm.address} onChange={(event) => setLocationForm((current) => ({ ...current, address: event.target.value }))} /></label>
+                  <label>City<input disabled={saving} required autoComplete="address-level2" value={locationForm.city} onChange={(event) => setLocationForm((current) => ({ ...current, city: event.target.value }))} /></label>
+                  <label>State<input disabled={saving} required autoComplete="address-level1" value={locationForm.state} onChange={(event) => setLocationForm((current) => ({ ...current, state: event.target.value }))} /></label>
+                  <label>ZIP code<input disabled={saving} required autoComplete="postal-code" value={locationForm.postalCode} onChange={(event) => setLocationForm((current) => ({ ...current, postalCode: event.target.value }))} /></label>
+                  <label>Receiving contact<input disabled={saving} value={locationForm.contact} onChange={(event) => setLocationForm((current) => ({ ...current, contact: event.target.value }))} /></label>
+                  <label>Receiving phone<input disabled={saving} type="tel" value={locationForm.phone} onChange={(event) => setLocationForm((current) => ({ ...current, phone: event.target.value }))} /></label>
+                  <label>Receiving hours<input disabled={saving} placeholder="Mon–Fri, 8:00–3:00" value={locationForm.receivingHours} onChange={(event) => setLocationForm((current) => ({ ...current, receivingHours: event.target.value }))} /></label>
+                  <label className="location-instructions">Delivery instructions<textarea disabled={saving} rows={2} placeholder="Dock, appointment, liftgate, or check-in details" value={locationForm.instructions} onChange={(event) => setLocationForm((current) => ({ ...current, instructions: event.target.value }))} /></label>
+                  <button type="submit" disabled={saving}>{editingLocationId ? 'Update location' : 'Add location'}</button>
                 </form>
               )}
 
@@ -442,14 +461,15 @@ export function CustomerAccountPage({ account, quoteRequests, quoteRequestsStatu
                   <div className="account-record-row" key={location.id}>
                     <span className="account-menu-icon"><Building2 size={20} /></span>
                     <div>
-                      <strong>{location.label}</strong>
+                      <strong>{location.label}{location.isDefault ? ' · Default' : ''}</strong>
                       <span>{location.address}, {location.city}, {location.state} {location.postalCode}</span>
                       <small>{[location.contact, location.phone, location.receivingHours].filter(Boolean).join(' · ')}</small>
                       {location.instructions ? <small>{location.instructions}</small> : null}
                     </div>
                     <div className="account-record-actions">
-                      <button className="account-edit-button" type="button" aria-label={`Edit ${location.label}`} onClick={() => startEditingLocation(location)}><Pencil size={16} /></button>
-                      <button className="account-remove-button" type="button" aria-label={`Remove ${location.label}`} onClick={() => updateDraft((current) => ({ ...current, receivingLocations: current.receivingLocations.filter((item) => item.id !== location.id) }))}><Trash2 size={17} /></button>
+                      {!location.isDefault && <button type="button" disabled={saving} onClick={() => updateDraft(current => ({...current,receivingLocations:current.receivingLocations.map(item => ({...item,isDefault:item.id === location.id}))}))}>Make default</button>}
+                      <button className="account-edit-button" disabled={saving} type="button" aria-label={`Edit ${location.label}`} onClick={() => startEditingLocation(location)}><Pencil size={16} /></button>
+                      <button className="account-remove-button" disabled={saving} type="button" aria-label={`Remove ${location.label}`} onClick={() => updateDraft((current) => ({ ...current, receivingLocations: current.receivingLocations.filter((item) => item.id !== location.id) }))}><Trash2 size={17} /></button>
                     </div>
                   </div>
                 ))}
