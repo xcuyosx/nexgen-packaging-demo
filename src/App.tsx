@@ -1,3 +1,5 @@
+import { safeReturnTo, caseLabel } from './portalPresentation'
+import './portal.css'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -46,6 +48,8 @@ import { TradeShowCalendar } from './TradeShowCalendar'
 import { CustomerAccountPage } from './CustomerAccountPage'
 import { CustomerLoginPage } from './CustomerLoginPage'
 import { CartPage } from './CartPage'
+import { ContactPage } from './ContactPage'
+import type { InquiryFields } from '../supabase/functions/submit-inquiry/validation'
 import {
   clearCustomerSession,
   emptyCustomerAccount,
@@ -119,9 +123,13 @@ function RouteScrollManager() {
 }
 
 function App() {
+  const [contactRequest, setContactRequest] = useState<InquiryFields>({ name: '', email: '', phone: '', company: '', need: 'standard', message: '', website: '' })
+  const contactAttemptRef = useRef({ payload: '', id: '' })
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
   const returningToCart = pathname === '/account' && new URLSearchParams(search).get('checkout') === '1'
+  const returnTo = safeReturnTo(new URLSearchParams(search).get('returnTo'))
+  const [accountRefresh,setAccountRefresh] = useState(0)
   const [passwordRecovery, setPasswordRecovery] = useState(readCustomerPasswordRecoveryLink)
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(() => passwordRecovery ? null : loadCustomerSession())
   const customerSessionToken = customerSession?.token || ''
@@ -168,6 +176,16 @@ function App() {
   }, [cartNotice])
 
   useEffect(() => saveCart(cart), [cart])
+  useEffect(() => {
+    const expired = () => {
+      const destination = window.location.pathname + window.location.search
+      clearCustomerSession(); setCustomerSession(null); setCustomerAccount(emptyCustomerAccount); setCustomerOrders([])
+      setCustomerLoginError('Your session expired. Please sign in again.')
+      navigate('/account?mode=login&returnTo='+encodeURIComponent(safeReturnTo(destination)||'/account'),{replace:true})
+    }
+    window.addEventListener('nexgen:session-expired',expired)
+    return () => window.removeEventListener('nexgen:session-expired',expired)
+  },[navigate])
 
   useLayoutEffect(() => {
     if (!passwordRecovery) return
@@ -177,8 +195,6 @@ function App() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
     clearCustomerSession()
   }, [passwordRecovery])
-  const [contactRequest, setContactRequest] = useState({ company: '', need: 'standard', message: '' })
-  const [contactEmailOpened, setContactEmailOpened] = useState(false)
 
   useEffect(() => {
     const updateHeaderBrand = () => {
@@ -234,7 +250,7 @@ function App() {
           setCustomerSession(null)
           setCustomerAccount(emptyCustomerAccount)
           setCustomerOrders([])
-          setCustomerLoginError('Your customer session has expired. Please sign in again.')
+          window.dispatchEvent(new Event('nexgen:session-expired'))
         })
     }, refreshIn)
     return () => window.clearTimeout(timer)
@@ -270,7 +286,7 @@ function App() {
         }
       })
     return () => controller.abort()
-  }, [customerSession?.expiresAt, customerSession?.provider, customerSession?.refreshToken, customerSessionToken])
+  }, [customerSession?.expiresAt, customerSession?.provider, customerSession?.refreshToken, customerSessionToken, accountRefresh])
 
   useEffect(() => {
     if (!customerSessionToken) return
@@ -330,7 +346,7 @@ function App() {
       setCustomerLastSyncedAt(result.record.updatedAt)
       setCustomerSyncStatus('connected')
       setBuyerDraft({})
-      if (returningToCart) navigate('/cart', { replace: true })
+      if (returningToCart || returnTo) navigate(returningToCart ? '/cart' : returnTo!, { replace: true })
     } catch (error) {
       setCustomerLoginError(error instanceof Error ? error.message : 'Sign-in failed. Please try again.')
     } finally {
@@ -371,7 +387,7 @@ function App() {
       setCustomerLastSyncedAt(result.record.updatedAt)
       setCustomerSyncStatus('connected')
       setBuyerDraft({})
-      if (returningToCart) navigate('/cart', { replace: true })
+      if (returningToCart || returnTo) navigate(returningToCart ? '/cart' : returnTo!, { replace: true })
     } catch (error) {
       setCustomerLoginError(error instanceof Error ? error.message : 'Account creation failed. Please try again.')
     } finally {
@@ -462,11 +478,18 @@ function App() {
     setQuoteRequestReady(false)
     setQuoteRequestNumber('')
     setQuoteRequestError('')
-    setCartNotice((editLineId ? 'Updated: ' : 'Added: ') + (configuration?.productName || productMap.get(productId)?.name || 'Packaging product') + ' · ' + cases + ' cases')
+    setCartNotice((editLineId ? 'Updated: ' : 'Added: ') + (configuration?.productName || productMap.get(productId)?.name || 'Packaging product') + ' · ' + cases + ' ' + caseLabel(cases))
     const newLineId = crypto.randomUUID()
     setCart((current) => editLineId
       ? replaceConfiguredCartLine(current, editLineId, productId, cases, size, configuration)
       : addConfiguredCartItem(current, productId, cases, size, configuration, newLineId))
+  }
+
+  const requestAgain = (request: QuoteReceipt) => {
+    if(request.lines.some(line=>!productMap.has(line.productId))) { setCartNotice('A product is no longer available in the catalog. Contact NexGen to repeat this request.'); return }
+    setCart(current=>request.lines.reduce((items,line)=>addConfiguredCartItem(items,line.productId,line.cases,line.size,{material:line.material,itemNumber:line.sku,productName:line.productName,printColors:line.printColors as PrintColorCount,inkColors:line.inkColors,artworkName:line.artworkName,additionalArtworkNames:line.additionalArtwork?.map(file=>file.name)},crypto.randomUUID()),current))
+    setQuoteRequestReady(false); setQuoteRequestNumber(''); setQuoteReceipt(null)
+    setCartNotice('Items copied to your cart. Reattach artwork before submitting.'); navigate('/cart')
   }
 
   const changeCartQuantity = (lineId: string, delta: number) => {
@@ -571,30 +594,10 @@ function App() {
     }
   }
 
-  const sendContactRequest = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const needLabels: Record<string, string> = {
-      standard: 'Standard product quote request',
-      sample: 'Product sample request',
-      custom: 'Custom printed packaging',
-      reorder: 'Reorder or account support',
-      sustainability: 'Sustainable material program',
-    }
-    const body = [
-      `Company: ${contactRequest.company}`,
-      `Need: ${needLabels[contactRequest.need] || contactRequest.need}`,
-      '',
-      contactRequest.message,
-    ].join('\n')
-
-    window.open(`mailto:orders@nexgenpac.com?subject=${encodeURIComponent(`Packaging inquiry — ${contactRequest.company}`)}&body=${encodeURIComponent(body)}`, '_self')
-    setContactEmailOpened(true)
-  }
-
   return (
     <div className="site-shell">
       <RouteScrollManager />
-      <DocumentMeta products={allProducts} signedIn={Boolean(customerSession)} />
+      <DocumentMeta products={allProducts} signedIn={Boolean(customerSession)} requestReceived={quoteRequestReady} />
       <header className="site-header">
         <Link className={`header-brand${headerBrandVisible ? ' visible' : ''}`} to="/" aria-label="Nexgen Packaging Group home">
           <img src={nexgenLogo} alt="" />
@@ -792,6 +795,7 @@ function App() {
                 requestReady={quoteRequestReady}
                 requestNumber={quoteRequestNumber}
                 receipt={quoteReceipt}
+                onRequestAgain={requestAgain}
                 requestLoading={quoteRequestLoading}
                 requestError={quoteRequestError}
                 onContactChange={updateQuoteContact}
@@ -808,9 +812,11 @@ function App() {
           <Route
             path="/account"
             element={
-              customerSession && returningToCart ? <Navigate to="/cart" replace /> : customerSession ? (
+              customerSession && (returningToCart || returnTo) ? <Navigate to={returningToCart ? '/cart' : returnTo!} replace /> : customerSession ? (
                 <CustomerAccountPage
                   token={customerSessionToken}
+                  onRequestAgain={requestAgain}
+                  onRefreshAccount={()=>{setCustomerSyncStatus('loading');setAccountRefresh(value=>value+1)}}
                   account={customerAccount}
                   quoteRequests={customerQuoteHistory}
                   quoteRequestsStatus={customerQuoteHistoryStatus}
@@ -870,58 +876,7 @@ function App() {
         </section>}
           />
 
-          <Route
-            path="/contact"
-            element={<section className="contact-section page-section" id="contact">
-          <div>
-            <p className="eyebrow">Contact NexGen</p>
-            <h1>Tell us what you need. We’ll help prepare your quote.</h1>
-            <p>
-              Share the product, quantity, artwork, timing, and delivery requirements. Our team will
-              confirm specifications, pricing, availability, and next steps.
-            </p>
-          </div>
-
-          <form className="contact-card" onSubmit={sendContactRequest}>
-            <label>
-              Company
-              <input
-                required
-                autoComplete="organization"
-                placeholder="Company name"
-                value={contactRequest.company}
-                onChange={(event) => setContactRequest((current) => ({ ...current, company: event.target.value }))}
-              />
-            </label>
-            <label>
-              Need
-              <select
-                value={contactRequest.need}
-                onChange={(event) => setContactRequest((current) => ({ ...current, need: event.target.value }))}
-              >
-                <option value="standard">Standard product quote request</option>
-                <option value="sample">Product sample request</option>
-                <option value="custom">Custom printed packaging</option>
-                <option value="reorder">Reorder or account support</option>
-                <option value="sustainability">Sustainable material program</option>
-              </select>
-            </label>
-            <label>
-              Message
-              <textarea
-                required
-                placeholder="Products, quantities, artwork, timing, and delivery location"
-                value={contactRequest.message}
-                onChange={(event) => setContactRequest((current) => ({ ...current, message: event.target.value }))}
-              />
-            </label>
-            <button className="primary-button full-width" type="submit">
-              {contactEmailOpened ? <Check size={18} /> : <Mail size={18} />}
-              {contactEmailOpened ? 'Email ready' : 'Email NexGen sales'}
-            </button>
-          </form>
-        </section>}
-          />
+          <Route path="/contact" element={<ContactPage fields={contactRequest} setFields={setContactRequest} attemptRef={contactAttemptRef} token={customerSessionToken} prefill={customerSession?{name:customerAccount.contactName,email:customerAccount.email,company:customerAccount.companyName,phone:customerAccount.phone}:undefined} />} />
 
           <Route path="/privacy" element={<LegalPage document="privacy" />} />
           <Route path="/terms" element={<LegalPage document="terms" />} />
@@ -929,7 +884,7 @@ function App() {
         </Routes>
       </main>
 
-      {cartNotice && pathname !== '/cart' && pathname !== '/account' && <aside className="cart-added-notice" role="status"><strong>{cartNotice}</strong><button type="button" onClick={() => setCartNotice('')}>Keep shopping</button><Link to="/cart" onClick={() => setCartNotice('')}>Review quote</Link></aside>}
+      {cartNotice && <aside className="cart-added-notice" role="status"><strong>{cartNotice}</strong><button type="button" onClick={() => setCartNotice('')}>{pathname === '/cart' || pathname === '/account' ? 'Dismiss' : 'Keep shopping'}</button>{pathname === '/account' ? <Link to="/contact" onClick={() => setCartNotice('')}>Contact NexGen</Link> : pathname !== '/cart' && <Link to="/cart" onClick={() => setCartNotice('')}>Review quote</Link>}</aside>}
       <SiteFooter />
     </div>
   )
@@ -1089,7 +1044,7 @@ function CustomProductBuilderPage({ products, onAdd }: CustomProductBuilderProps
               </label>
               <label>
                 Estimated cases
-                <select value={cases} onChange={event => { setCases(Number(event.target.value)); setAdded(false) }}>{quoteQuantityOptions.map(quantity => <option key={quantity} value={quantity}>{quantity} cases</option>)}</select>
+                <select value={cases} onChange={event => { setCases(Number(event.target.value)); setAdded(false) }}>{quoteQuantityOptions.map(quantity => <option key={quantity} value={quantity}>{quantity} {caseLabel(quantity)}</option>)}</select>
               </label>
             </div>
           </div>

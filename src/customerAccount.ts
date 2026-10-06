@@ -2,6 +2,7 @@ import { classifyCustomerSignupResponse, isExistingAccountAuthError, parseCustom
 import { submitQuoteAttempt } from './quoteSubmission'
 import { saveCustomerPreferences } from './customerAccountPreferences'
 import type { QuoteReceipt } from './QuoteRequestSummary'
+import { quoteViewFields } from './customerQuoteView'
 
 export type BillingPreference = 'Credit card' | 'Invoice / net terms' | 'Purchase order'
 
@@ -138,6 +139,7 @@ export type CustomerQuoteHistoryItem = {
 }
 
 export type CustomerQuoteHistoryEntry = {
+  purchaseOrder?:string;quoteTotal?:number|null;currency?:string;validThrough?:string;needsReply?:boolean;activity?:{at:string;label:string}[]
   requestNumber: string
   submittedAt: string
   status: string
@@ -534,7 +536,7 @@ export async function submitCustomerQuoteRequest(
 }
 export async function fetchCustomerQuoteHistory(token: string, signal?: AbortSignal): Promise<CustomerQuoteHistoryEntry[]> {
   if (!useSupabaseCustomerAccounts) return []
-  const response = await supabaseRequest('rpc/customer_quote_history', token, {
+  const response = await supabaseRequest('rpc/customer_quote_list', token, {
     method: 'POST',
     body: '{}',
     signal,
@@ -551,7 +553,7 @@ export async function fetchCustomerQuoteHistory(token: string, signal?: AbortSig
     if (!requestNumber) return null
     const items = Array.isArray(row.items) ? row.items : []
     return {
-      requestNumber,
+      requestNumber,purchaseOrder:String(row.purchase_order||''),quoteTotal:typeof row.quote_total==='number'?row.quote_total:null,currency:String(row.currency||'USD'),validThrough:String(row.valid_through||''),needsReply:row.needs_reply===true,activity:Array.isArray(row.activity)?row.activity.map((value:unknown)=>{const event=value as Record<string,unknown>;return {at:String(event.at||''),label:String(event.label||'Quote update')}}):[],
       submittedAt: String(row.submitted_at || ''),
       status: String(row.customer_status || 'Preparing your quote'),
       issuedQuoteNumber: String(row.issued_quote_number || ''),
@@ -568,14 +570,14 @@ export async function fetchCustomerQuoteHistory(token: string, signal?: AbortSig
 }
 
 export async function fetchCustomerQuoteDetail(token: string, requestNumber: string, signal?: AbortSignal): Promise<QuoteReceipt> {
-  const response = await supabaseRequest('rpc/customer_quote_detail', token, { method:'POST', body:JSON.stringify({p_request_number:requestNumber}), signal })
+  const response = await supabaseRequest('rpc/customer_quote_view', token, { method:'POST', body:JSON.stringify({p_request_number:requestNumber}), signal })
   const body = await readJson(response)
   if (!response.ok) throw new Error('Unable to load this request. Please try again or contact NexGen.')
   if (!body || typeof body !== 'object' || !('requestNumber' in body) || body.requestNumber !== requestNumber) throw new Error('This request is unavailable for your account.')
   const row = body as Record<string,unknown>
   const strings = (value: unknown) => value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string,string] => typeof entry[1] === 'string')) : {}
   return {
-    requestNumber, submittedAt:String(row.submittedAt || ''), status:String(row.status || 'Submitted'),
+    ...quoteViewFields(row),requestNumber, submittedAt:String(row.submittedAt || ''), status:String(row.status || 'Submitted'),
     issuedQuoteNumber:String(row.issuedQuoteNumber || ''),validThrough:String(row.validThrough || ''),
     contact:strings(row.contact),billing:strings(row.billing),shipping:strings(row.shipping),
     purchaseOrder:String(row.purchaseOrder || ''),notes:String(row.notes || ''),
@@ -587,6 +589,25 @@ export async function fetchCustomerQuoteDetail(token: string, requestNumber: str
       inkColors:Array.isArray(line.inkColors)?line.inkColors.filter((v): v is string=>typeof v==='string'):[],artworkName:String(line.artworkName||''),
     })),
   }
+}
+
+export async function customerQuoteRpc(token:string,name:string,payload:unknown):Promise<unknown>{
+  const response=await supabaseRequest('rpc/'+name,token,{method:'POST',body:JSON.stringify(payload)})
+  const body=await readJson(response)
+  if(!response.ok)throw new Error(apiErrorMessage(body,'This update could not be confirmed. Try again.'))
+  return body
+}
+
+export async function downloadCustomerQuoteDocument(token:string,documentId:string):Promise<void> {
+  const response=await fetch(supabaseUrl+'/functions/v1/customer-quote-document',{method:'POST',headers:{apikey:supabaseAnonKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({documentId})})
+  if(response.status===401){window.dispatchEvent(new CustomEvent('nexgen:session-expired'));throw new Error('Your session expired. Sign in again.')}
+  const body=await response.json()
+  if(!response.ok || typeof body.url!=='string')throw new Error('This document could not be downloaded. Try again.')
+  const url=new URL(body.url),base=new URL(supabaseUrl)
+  if(url.origin!==base.origin||url.pathname!=='/functions/v1/customer-quote-document')throw new Error('Invalid document link.')
+  const file=await fetch(url,{referrerPolicy:'no-referrer'})
+  if(!file.ok)throw new Error('The download link expired or access changed. Try again.')
+  const objectUrl=URL.createObjectURL(await file.blob()),a=document.createElement('a');a.href=objectUrl;a.download=String(body.fileName||'NexGen-quote.pdf');a.click();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000)
 }
 
 async function fetchCustomerAccountWithRetry(token: string) {
@@ -634,8 +655,8 @@ function userIdFromAccessToken(token: string) {
   }
 }
 
-function supabaseRequest(path: string, token: string, options: RequestInit = {}) {
-  return fetch(`${supabaseUrl}/rest/v1/${path}`, {
+async function supabaseRequest(path: string, token: string, options: RequestInit = {}) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
     ...options,
     headers: {
       apikey: supabaseAnonKey,
@@ -644,6 +665,11 @@ function supabaseRequest(path: string, token: string, options: RequestInit = {})
       ...options.headers,
     },
   })
+  if(response.status === 401) {
+    if(typeof window !== 'undefined') window.dispatchEvent(new Event('nexgen:session-expired'))
+    throw new Error('Your session expired. Please sign in again.')
+  }
+  return response
 }
 
 async function readJson(response: Response): Promise<unknown> {

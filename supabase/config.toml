@@ -1,3 +1,13 @@
-# Scheduler-only endpoint; handler requires a server-held worker secret.
+# Contact inquiries intentionally support visitors without an account.
+# Validation, origin allow-list and durable rate limiting run inside the function.
+[functions.submit-inquiry]
+verify_jwt = false
+
+# Scheduler-only endpoint; the handler requires a separate server-held secret.
+# Never place QUOTE_WORKER_SECRET in a VITE_ variable or call from the browser.
 [functions.quote-notifications]
+verify_jwt = false
+
+# POST checks the account JWT; GET verifies a short-lived HMAC ticket and ownership.
+[functions.customer-quote-document]
 verify_jwt = false

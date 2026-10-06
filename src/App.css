@@ -6378,6 +6378,16 @@ main {
   resize: vertical;
 }
 
+.contact-details { display: grid; gap: 16px; margin-top: 32px; font-style: normal; }
+.contact-details a, .contact-details span { display: flex; align-items: center; gap: 10px; color: inherit; }
+.contact-card { position: relative; }
+.contact-field { display: grid; gap: 7px; }
+.contact-card .contact-field-error, .contact-card .contact-submit-error { color: #922d25; font-size: 14px; }
+.contact-card [aria-invalid="true"] { border-color: #922d25; }
+.contact-card :disabled { opacity: .7; cursor: wait; }
+.contact-honeypot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.contact-success { border: 1px solid rgba(20, 47, 44, .14); border-radius: 8px; background: var(--paper); }
+
 footer {
   padding: 28px clamp(18px, 4vw, 56px);
   display: flex;

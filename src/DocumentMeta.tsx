@@ -13,13 +13,13 @@ function setMeta(attribute: 'name' | 'property', key: string, content: string) {
   element.content = content
 }
 
-export function DocumentMeta({ products, signedIn = false }: { products: Product[]; signedIn?: boolean }) {
+export function DocumentMeta({ products, signedIn = false, requestReceived = false }: { products: Product[]; signedIn?: boolean; requestReceived?: boolean }) {
   const { pathname, search } = useLocation()
   const metadata = getPageMetadata(pathname, products)
   const view = new URLSearchParams(search).get('view') || 'overview'
   const titles: Record<string,string> = { overview:'My account', quotes:'My quote requests', billing:'Billing preferences', locations:'Delivery locations', profile:'Company details' }
   const { description, noindex } = metadata
-  const title = pathname === '/account' && signedIn ? (new URLSearchParams(search).has('request') ? 'Quote request details' : titles[view] || 'My account') + ' | NexGen' : metadata.title
+  const title = pathname === '/cart' && requestReceived ? 'Request received | NexGen' : pathname === '/account' && signedIn ? (new URLSearchParams(search).has('request') ? 'Quote request details' : titles[view] || 'My account') + ' | NexGen' : metadata.title
   useEffect(() => {
     const canonicalUrl = new URL(import.meta.env.VITE_SITE_URL)
     canonicalUrl.pathname = pathname.replace(/\/+$/, '') || '/'

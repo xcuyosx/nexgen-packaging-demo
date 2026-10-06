@@ -17,7 +17,7 @@ test('lost insert response recovers persisted receipt with one insert and one up
  const o=options();let stored,posts=0,uploads=0
  const fetcher=async(url,init={})=>{
   if(url.includes('/storage/')){uploads++;return Response.json({Key:'ok'})}
-  if(init.method==='POST'){posts++;stored=JSON.parse(init.body);throw Error('lost response')}
+  if(url.endsWith('/submit_customer_quote_request')){posts++;stored=JSON.parse(init.body).p_request;throw Error('lost response')}
   return Response.json(stored?[stored]:[])
  }
  const result=await submitQuoteAttempt(o,fetcher);assert.equal(result.requestNumber,stored.request_number);assert.equal(posts,1);assert.equal(uploads,1)
@@ -26,7 +26,7 @@ test('ambiguous insert plus failed read can be retried without a second quote or
  const o=options();let stored,posts=0,reads=0,uploads=0,failRead=true
  const fetcher=async(url,init={})=>{
   if(url.includes('/storage/')){uploads++;return Response.json({Key:'ok'})}
-  if(init.method==='POST'){posts++;stored=JSON.parse(init.body);throw Error('lost response')}
+  if(url.endsWith('/submit_customer_quote_request')){posts++;stored=JSON.parse(init.body).p_request;throw Error('lost response')}
   reads++;if(reads>1&&failRead)throw Error('network offline');return Response.json(stored?[stored]:[])
  }
  await assert.rejects(submitQuoteAttempt(o,fetcher));failRead=false
@@ -34,7 +34,7 @@ test('ambiguous insert plus failed read can be retried without a second quote or
 })
 test('empty or wrong receipts cannot clear the cart or report success',async()=>{
  for(const payload of [[],[{id:crypto.randomUUID(),request_number:'WEB-20261004-WRONG'}]]){
-  const fetcher=async(url,init={})=>Response.json(url.includes('/storage/')?{}:init.method==='POST'?payload:[])
+  const fetcher=async(url,init={})=>Response.json(url.includes('/storage/')?{}:url.endsWith('/submit_customer_quote_request')?payload:[])
   await assert.rejects(submitQuoteAttempt(options(),fetcher),/receipt could not be confirmed/)
  }
 })

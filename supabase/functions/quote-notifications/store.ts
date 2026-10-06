@@ -11,14 +11,17 @@ export function createQuoteStore(url: string, serviceKey: string, request: typeo
   }
   const patch = async (job: QuoteJob, body: unknown) => {
     const identity = job.notification_id ? `notification_id=eq.${job.notification_id}` : `request_id=eq.${job.request_id}&kind=eq.${job.kind}`
-    const rows = await call(`/rest/v1/quote_notification_jobs?${identity}&claim_id=eq.${job.claim_id}&claim_until=gt.${encodeURIComponent(new Date().toISOString())}&select=request_id`, 'PATCH', body)
+    const rows = await call(`/rest/v1/${job.queue==='portal'?'portal_notification_jobs':'quote_notification_jobs'}?${identity}&claim_id=eq.${job.claim_id}&claim_until=gt.${encodeURIComponent(new Date().toISOString())}&select=request_id`, 'PATCH', body)
     if (!Array.isArray(rows) || rows.length !== 1) throw new Error('Quote notification lease expired')
   }
   return {
     async claim(id) {
       const rows = await call('/rest/v1/rpc/claim_quote_notification', 'POST', { p_claim_id: id })
       if (!Array.isArray(rows) || rows.length > 1) throw new Error('Invalid claim response')
-      return rows[0] || null
+      if(rows[0])return rows[0]
+      const events=await call('/rest/v1/rpc/claim_portal_notification','POST',{p_claim_id:id})
+      if(!Array.isArray(events)||events.length>1)throw new Error('Invalid portal claim response')
+      return events[0]||null
     },
     prepare: (job, mail, started) => patch(job, { prepared_mail: mail, first_attempt_at: started }),
     accepted: (job, providerId) => patch(job, { accepted_at: new Date().toISOString(), provider_id: providerId, claim_id: null, claim_until: null }),

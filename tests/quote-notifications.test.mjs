@@ -10,6 +10,19 @@ const job=kind=>({request_id:id,kind,created_at:'2026-10-06T15:00:00Z',verified_
 const fixture=()=>{let current; const accepted=[]; const stopped=[]; let signs=0; return {accepted,stopped,get signs(){return signs},get current(){return current},
  store:{claim:async()=>null,sign:async paths=>{signs++;return paths.map(p=>`https://local.test/${p}?token=fixed`)},prepare:async(j,m,t)=>{current={...j,prepared_mail:structuredClone(m),first_attempt_at:t}},accepted:async(j,p)=>{accepted.push({j,p})},release:async(j,why)=>{stopped.push(why)}}}}
 
+test('reply, change-request and inquiry mail use whitelisted text and independent durable identities',async()=>{
+ for(const kind of ['reply','changes','contact_sales','contact_visitor']){
+  const f=fixture(),event={...job(kind),queue:'portal',notification_id:crypto.randomUUID(),snapshot:{...job(kind).snapshot,body:'Please review this change.',name:'QA Buyer',company:'QA Company',email:'verified@example.test',phone:'',need:'sample',message:'Please send samples.',cost:'PRIVATE_COST',internalNotes:'PRIVATE_NOTE'}}
+  const mail=await buildQuoteMail(event,f.store)
+  assert.doesNotMatch(mail.text,/PRIVATE_COST|PRIVATE_NOTE|token=/)
+  assert.deepEqual(mail.to,[kind==='changes'||kind==='contact_sales'?'orders@nexgenpac.com':'verified@example.test'])
+  const attempts=[];const send=async(message,key)=>{attempts.push({message,key});if(attempts.length===1)throw Error('Uncertain provider response');return 'accepted'}
+  assert.equal(await deliverQuoteJob(event,f.store,send),'retry')
+  assert.equal(await deliverQuoteJob(f.current,f.store,send),'accepted')
+  assert.deepEqual(attempts[0],attempts[1]);assert.match(attempts[0].key,new RegExp(event.notification_id))
+ }
+})
+
 test('both receipts include submitted details; customer receives no artwork links and only at verified address',async()=>{
  const f=fixture();const sales=await buildQuoteMail(job('sales'),f.store), customer=await buildQuoteMail(job('customer'),f.store)
  assert.deepEqual(sales.to,['orders@nexgenpac.com']);assert.equal(sales.reply_to,'verified@example.test')
@@ -17,7 +30,7 @@ test('both receipts include submitted details; customer receives no artwork link
  assert.deepEqual(customer.to,['verified@example.test']);assert.equal(customer.reply_to,'orders@nexgenpac.com')
  assert.match(customer.text,/CUP-QA/);assert.match(customer.text,/12/);assert.doesNotMatch(customer.text,/token=/)
  assert.match(customer.text,/Local QA/);assert.match(customer.text,/Office/);assert.match(customer.text,/within 1 business day/)
- assert.match(customer.text,/Submitted: 2026-10-06T15:00:00.000Z/);assert.match(customer.text,/3. You review the quote/)
+ assert.match(customer.text,/Submitted: Oct 6, 2026, 10:00 AM CDT/);assert.match(customer.text,/3. You review the quote/)
  assert.equal(f.signs,1);assert.equal(customer.from,'orders@nexgenpac.com')
 })
 test('an ambiguous provider acceptance retries the same key and exact signed-link payload',async()=>{

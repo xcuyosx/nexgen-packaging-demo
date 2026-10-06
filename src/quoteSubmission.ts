@@ -12,8 +12,8 @@ export async function submitQuoteAttempt(options: {
     && value[0]?.id === attempt.id && value[0]?.request_number === attempt.number
   const finish = () => { attempt.confirm(); return { requestNumber: attempt.number } }
   const lookup = async () => {
-    const response = await fetcher(`${url}/rest/v1/customer_quote_requests?id=eq.${attempt.id}&user_id=eq.${userId}&select=id,request_number`, {
-      headers, signal: AbortSignal.timeout(15000),
+    const response = await fetcher(`${url}/rest/v1/rpc/customer_quote_submission_receipt`, {
+      method:'POST', headers:{...headers,'Content-Type':'application/json'}, body:JSON.stringify({p_id:attempt.id}), signal: AbortSignal.timeout(15000),
     })
     if (!response.ok) throw new Error('Unable to verify your earlier submission. Please try again before starting a new request.')
     const rows = await response.json()
@@ -33,11 +33,11 @@ export async function submitQuoteAttempt(options: {
       const duplicate = response.status === 409 && (await response.json().catch(() => null))?.error === 'Duplicate'
       if (!response.ok && !duplicate) throw new Error('Artwork upload could not be confirmed. Your files are still selected; please try again.')
     }
-    const response = await fetcher(`${url}/rest/v1/customer_quote_requests`, {
+    const response = await fetcher(`${url}/rest/v1/rpc/submit_customer_quote_request`, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ id: attempt.id, user_id: userId, lead_id: leadId, request_number: attempt.number,
+      body: JSON.stringify({ p_request: { id: attempt.id, user_id: userId, lead_id: leadId, request_number: attempt.number,
         contact_snapshot: request.contact, billing_snapshot: request.billing, shipping_snapshot: request.shipping,
-        purchase_order: request.purchaseOrder, notes: request.notes, lines: attempt.lines }),
+        purchase_order: request.purchaseOrder, notes: request.notes, lines: attempt.lines } }),
       signal: AbortSignal.timeout(30000),
     })
     const body = await response.json().catch(() => null)

@@ -1,13 +1,15 @@
+import { formatPortalDate, portalConfig, caseLabel } from './portalPresentation'
 import type { CustomerQuoteRequestInput } from './customerAccount'
+import type { QuoteViewFields } from './customerQuoteView'
 
-export type QuoteReceipt = Omit<CustomerQuoteRequestInput, 'artworkFiles'> & { requestNumber: string; submittedAt: string; status?: string; issuedQuoteNumber?: string; validThrough?: string }
+export type QuoteReceipt = Omit<CustomerQuoteRequestInput, 'artworkFiles'> & Partial<QuoteViewFields> & { requestNumber: string; submittedAt: string; status?: string; issuedQuoteNumber?: string; validThrough?: string }
 
 export function QuoteRequestSummary({ request }: { request: QuoteReceipt }) {
   const address = (value: Record<string, unknown>) => ['label','legalName','billingEmail','preference','address','city','state','postalCode','contact','phone','receivingHours','instructions'].flatMap(key => typeof value[key] === 'string' && value[key] ? [<div key={key}>{String(value[key])}</div>] : [])
   return <div className="request-summary">
-    <p>Request <strong>{request.requestNumber}</strong> · Submitted {new Date(request.submittedAt).toLocaleString()}</p>
+    <p>Request <strong>{request.requestNumber}</strong> · Submitted {formatPortalDate(request.submittedAt)}</p>
     <ol className="request-summary-lines">{request.lines.map((line,index) => <li key={index}>
-      <h3>{line.productName}</h3><p>{line.sku ? `Item ${line.sku} · ` : ''}{line.cases} cases · {line.size} · {line.material}</p>
+      <h3>{line.productName}</h3><p>{line.sku ? `Item ${line.sku} · ` : ''}{line.cases} {caseLabel(line.cases)} · {line.size} · {line.material}</p>
       <p>{line.printColors ? `${line.printColors}-color printing${line.inkColors.length ? ` · ${line.inkColors.join(', ')}` : ''}` : 'Unprinted'}</p>
       <p>Artwork: {[line.artworkName,...(line.additionalArtwork || []).map(file => file.name)].filter(Boolean).join(', ') || 'None'}</p>
     </li>)}</ol>
@@ -15,7 +17,7 @@ export function QuoteRequestSummary({ request }: { request: QuoteReceipt }) {
     <p>Contact: {request.contact.name} · {request.contact.email}</p>
     {request.purchaseOrder && <p>PO / reference: {request.purchaseOrder}</p>}
     {request.notes && <p className="request-notes">Notes: {request.notes}</p>}
-    {(!request.status || ['Submitted', 'In review'].includes(request.status)) && <><h3>What happens next</h3><ol><li>NexGen reviews your specifications and delivery requirements.</li><li>We follow up within 1 business day with pricing or any questions.</li><li>You review the quote before confirming how to proceed.</li></ol></>}
+    {(!request.status || ['Submitted', 'In review'].includes(request.status)) && <><h3>What happens next</h3><ol><li>NexGen reviews your specifications and delivery requirements.</li><li>{portalConfig.responsePromise}</li><li>You review the quote before confirming how to proceed.</li></ol></>}
     <p>No payment is collected when you request a quote.</p>
   </div>
 }

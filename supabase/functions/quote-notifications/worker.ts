@@ -1,6 +1,8 @@
+import {formatPortalDate} from '../_shared/portalDate.ts'
+import { portalDefaults } from '../_shared/portalConfig.ts'
 export type Mail = { from: string; to: string[]; reply_to: string; subject: string; text: string }
 export type QuoteJob = {
-  notification_id?: string; request_id: string; kind: 'sales' | 'customer' | 'status'; snapshot: Record<string, unknown>
+  notification_id?: string; queue?:'portal'; request_id: string; kind: 'sales' | 'customer' | 'status' | 'reply' | 'changes' | 'contact_sales' | 'contact_visitor'; snapshot: Record<string, unknown>
   verified_email: string | null; prepared_mail: Mail | null; first_attempt_at: string | null
   claim_id: string; attempts: number; created_at?: string
 }
@@ -11,7 +13,7 @@ export type QuoteStore = {
   release(job: QuoteJob, stopped: string | null): Promise<void>
   sign(paths: string[]): Promise<string[]>
 }
-const mailbox = 'orders@nexgenpac.com'
+const mailbox = portalDefaults.contactEmail
 const uuid = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
 const validId = new RegExp(`^${uuid}$`, 'i')
 const email = (value: unknown): value is string => typeof value === 'string' && value.length <= 254
@@ -21,6 +23,19 @@ class InvalidJob extends Error {}
 
 export async function buildQuoteMail(job: QuoteJob, store: QuoteStore): Promise<Mail> {
   const q = job.snapshot
+  if(job.queue==='portal'){
+    if(!validId.test(job.notification_id||'')||!validId.test(job.request_id)||q.id!==job.request_id||!email(job.verified_email))throw new InvalidJob('Invalid portal event')
+    if(job.kind==='contact_sales'||job.kind==='contact_visitor'){
+      const reference='INQ-'+job.request_id
+      const body=job.kind==='contact_sales'?[`Reference: ${reference}`,`Name: ${text(q.name)}`,`Company: ${text(q.company)}`,`Email: ${text(q.email)}`,`Phone: ${text(q.phone)}`,`Need: ${text(q.need)}`,'',text(q.message)].join('\n'):`We received your inquiry.\nReference: ${reference}\n\n${portalDefaults.responsePromise}\n\nQuestions: ${mailbox}`
+      return {from:mailbox,to:[job.kind==='contact_sales'?mailbox:job.verified_email!],reply_to:job.kind==='contact_sales'&&email(q.email)?q.email:mailbox,subject:`${job.kind==='contact_sales'?'New website inquiry':'NexGen inquiry received'} ${reference}`,text:body}
+    }
+    if(!['reply','changes'].includes(job.kind)||!/^WEB-[0-9]{8}-[A-Z0-9-]{6,36}$/.test(text(q.request_number))||text(q.body).length>5000)throw new InvalidJob('Invalid conversation event')
+    const link=`https://storefront-staging.vercel.app/account?view=quotes&request=${encodeURIComponent(text(q.request_number))}`
+    return {from:mailbox,to:[job.kind==='changes'?mailbox:job.verified_email!],reply_to:mailbox,
+      subject:`${job.kind==='changes'?'Customer response':'NexGen replied'} · ${text(q.request_number)}`,
+      text:`Request ${text(q.request_number)}\n\n${text(q.body)}\n\n${job.kind==='changes'?'Open the CRM quote library to review and reply.':'Sign in to view and reply: '+link}\n\nQuestions: ${mailbox}`}
+  }
   if (!validId.test(job.request_id) || q.id !== job.request_id || !validId.test(text(q.user_id))
     || !/^WEB-[0-9]{8}-[A-Z0-9-]{6,36}$/.test(text(q.request_number))) throw new InvalidJob('Invalid quote job')
   if (job.kind !== 'sales' && !email(job.verified_email)) throw new InvalidJob('Invalid recipient')
@@ -30,7 +45,7 @@ export async function buildQuoteMail(job: QuoteJob, store: QuoteStore): Promise<
     const link = `https://storefront-staging.vercel.app/account?view=quotes&request=${encodeURIComponent(text(q.request_number))}`
     return { from: mailbox, to: [job.verified_email!], reply_to: mailbox,
       subject: `Quote request ${text(q.request_number)}: ${text(q.status)}`,
-      text: `Quote request ${text(q.request_number)}\nStatus: ${text(q.status)}\nUpdated: ${new Date(text(q.changed_at)).toISOString()}\n\nSign in to view your request: ${link}\n\nQuestions: ${mailbox}\nNexGen Packaging Group` }
+      text: `Quote request ${text(q.request_number)}\nStatus: ${text(q.status)}\nUpdated: ${formatPortalDate(text(q.changed_at),'America/Chicago')}\n\nSign in to view your request: ${link}\n\nQuestions: ${mailbox}\nNexGen Packaging Group` }
   }
   if (!['sales','customer'].includes(job.kind) || !Array.isArray(q.lines) || !q.lines.length || q.lines.length > 50) throw new InvalidJob('Invalid quote job')
   const paths: string[] = []
@@ -58,7 +73,7 @@ export async function buildQuoteMail(job: QuoteJob, store: QuoteStore): Promise<
       + `Artwork: ${[text(line.artworkName), ...additional.map(value => text((value as Record<string,unknown>).name))].filter(Boolean).join(', ') || 'None'}`
   }).join('\n\n')
   let body = `Quote request ${text(q.request_number)}\n\n`
-  if (job.created_at && Number.isFinite(Date.parse(job.created_at))) body += `Submitted: ${new Date(job.created_at).toISOString()}\n\n`
+  if (job.created_at && Number.isFinite(Date.parse(job.created_at))) body += `Submitted: ${formatPortalDate(job.created_at,'America/Chicago')}\n\n`
   body += job.kind === 'sales' ? 'A customer submitted a quote request.\n\n' : 'We received your quote request.\n\n'
   body += summaries
   {
@@ -72,7 +87,7 @@ export async function buildQuoteMail(job: QuoteJob, store: QuoteStore): Promise<
     }
     if (job.kind === 'sales') body += '\n\nOpen the CRM quote library to review this request. Artwork remains available to authorized staff there after email links expire.'
   }
-  body += '\n\nWhat happens next:\n1. NexGen reviews your specifications and delivery requirements.\n2. We follow up within 1 business day with pricing or any questions.\n3. You review the quote before confirming how to proceed.\n\nNo payment is collected when you request a quote. This email confirms receipt of your request for pricing. Track your request at https://storefront-staging.vercel.app/account?view=quotes.\nQuestions: orders@nexgenpac.com | (833) 853-1243\nNexGen Packaging Group'
+  body += '\n\nWhat happens next:\n1. NexGen reviews your specifications and delivery requirements.\n2. ' + portalDefaults.responsePromise + '\n3. You review the quote before confirming how to proceed.\n\nNo payment is collected when you request a quote. This email confirms receipt of your request for pricing. Track your request at https://storefront-staging.vercel.app/account?view=quotes.\nQuestions: orders@nexgenpac.com | (833) 853-1243\nNexGen Packaging Group'
   if (body.length > 200000) throw new InvalidJob('Message too large')
   return { from: mailbox, to: [job.kind === 'sales' ? mailbox : job.verified_email!],
     reply_to: job.kind === 'sales' && email(job.verified_email) ? job.verified_email : mailbox,
@@ -94,7 +109,7 @@ export async function deliverQuoteJob(job: QuoteJob, store: QuoteStore, send: (m
     } else if (!job.first_attempt_at) throw new InvalidJob('Prepared job missing timestamp')
     // Existing receipt keys are unchanged, including retries prepared before the migration.
     if (job.kind === 'status' && !validId.test(job.notification_id || '')) throw new InvalidJob('Invalid status identity')
-    const key = job.kind === 'status' ? `storefront-quote/status/${job.notification_id}/v1` : `storefront-quote/${job.request_id}/${job.kind}/v1`
+    const key = job.queue==='portal'?`storefront-portal/${job.notification_id}/v1`:job.kind === 'status' ? `storefront-quote/status/${job.notification_id}/v1` : `storefront-quote/${job.request_id}/${job.kind}/v1`
     const id = await send(mail, key)
     await store.accepted(job, id)
     return 'accepted'

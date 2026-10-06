@@ -1,3 +1,7 @@
+import { PortalHome } from './PortalHome'
+import { PortalQuoteList } from './PortalQuoteList'
+import { PortalSkeleton, PortalError } from './PortalFeedback'
+import type { QuoteReceipt } from './QuoteRequestSummary'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -6,15 +10,11 @@ import {
   Building2,
   Check,
   ChevronLeft,
-  ChevronRight,
   LogOut,
-  Mail,
-  MapPin,
   Pencil,
   Plus,
   ReceiptText,
   Trash2,
-  UserRound,
 } from 'lucide-react'
 import type {
   BillingPreference,
@@ -22,7 +22,6 @@ import type {
   CustomerQuoteHistoryEntry,
 } from './customerAccount'
 import { createCustomerRecordId } from './customerAccount'
-import { customerStatus } from './quoteForm'
 import { CustomerQuoteDetail } from './CustomerQuoteDetail'
 
 type AccountView = 'overview' | 'profile' | 'quotes' | 'billing' | 'locations'
@@ -35,16 +34,11 @@ type CustomerAccountPageProps = {
   quoteRequestsError: string
   onRefreshQuoteRequests: () => void
   onSave: (account: CustomerAccount, original: CustomerAccount) => void | Promise<void>
+  onRequestAgain: (request: QuoteReceipt) => void
+  onRefreshAccount: () => void
   onSignOut: () => void | Promise<void>
   syncStatus: 'loading' | 'connected' | 'saving' | 'saved' | 'offline'
   lastSyncedAt: string
-}
-
-type AccountMenuRowProps = {
-  icon: ReactNode
-  title: string
-  description: string
-  onClick: () => void
 }
 
 type AccountDetailHeaderProps = {
@@ -79,23 +73,6 @@ function accountViewFromSearch(search: string): AccountView {
     ? view : 'overview'
 }
 
-function formatAccountDate(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? 'recently' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function AccountMenuRow({ icon, title, description, onClick }: AccountMenuRowProps) {
-  return (
-    <button className="account-menu-row" type="button" onClick={onClick}>
-      <span className="account-menu-icon">{icon}</span>
-      <span>
-        <strong>{title}</strong>
-        <small>{description}</small>
-      </span>
-      <ChevronRight size={20} aria-hidden="true" />
-    </button>
-  )
-}
 
 function AccountDetailHeader({ title, description, onBack, action }: AccountDetailHeaderProps) {
   return (
@@ -114,13 +91,14 @@ function AccountDetailHeader({ title, description, onBack, action }: AccountDeta
   )
 }
 
-export function CustomerAccountPage({ account, token, quoteRequests, quoteRequestsStatus, quoteRequestsError, onRefreshQuoteRequests, onSave, onSignOut, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
+export function CustomerAccountPage({ account, token, quoteRequests, quoteRequestsStatus, quoteRequestsError, onRefreshQuoteRequests, onSave, onSignOut, onRequestAgain, onRefreshAccount, syncStatus, lastSyncedAt }: CustomerAccountPageProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const activeView = accountViewFromSearch(location.search)
   const setActiveView = (view: AccountView) => { if (!unsaved || window.confirm('Leave without saving your current form?')) navigate(view === 'overview' ? '/account' : `/account?view=${view}`) }
   const [draft, setDraft] = useState<{ value: CustomerAccount; original: CustomerAccount } | null>(null)
   const [saved, setSaved] = useState(false)
+  const [removed, setRemoved] = useState<{kind:'billing'; item:CustomerAccount['billingProfiles'][number]} | {kind:'location'; item:CustomerAccount['receivingLocations'][number]} | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [showBillingForm, setShowBillingForm] = useState(false)
@@ -181,6 +159,18 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
     }
   }
 
+  const removePreference = async (kind:'billing'|'location', id:string) => {
+    const item = kind === 'billing' ? currentAccount.billingProfiles.find(value => value.id === id) : currentAccount.receivingLocations.find(value => value.id === id)
+    if (!item || !window.confirm('Remove "' + item.label + '"? You can undo this after removal.')) return
+    const next = kind === 'billing' ? {...currentAccount,billingProfiles:currentAccount.billingProfiles.filter(value=>value.id!==id)} : {...currentAccount,receivingLocations:currentAccount.receivingLocations.filter(value=>value.id!==id)}
+    if(await saveAccount(next)) setRemoved(kind === 'billing' ? {kind,item:item as CustomerAccount['billingProfiles'][number]} : {kind,item:item as CustomerAccount['receivingLocations'][number]})
+  }
+  const undoRemove = async () => {
+    if(!removed) return
+    const next = removed.kind === 'billing' ? {...currentAccount,billingProfiles:[...currentAccount.billingProfiles.filter(item=>item.id!==removed.item.id),{...removed.item,isDefault:removed.item.isDefault && !currentAccount.billingProfiles.some(item=>item.isDefault)}]} : {...currentAccount,receivingLocations:[...currentAccount.receivingLocations.filter(item=>item.id!==removed.item.id),{...removed.item,isDefault:removed.item.isDefault && !currentAccount.receivingLocations.some(item=>item.isDefault)}]}
+    if(await saveAccount(next)) setRemoved(null)
+  }
+
   const saveErrorNotice = saveError ? (
     <p className="account-save-error" role="alert">
       We couldn’t confirm this update was saved to your NexGen account. Your edits remain here so you can retry. {saveError}
@@ -232,7 +222,17 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
 
   return (
     <section className="account-page page-section">
-      <div className="account-shell">
+      <div className="account-shell portal-account-shell">
+        <aside className="portal-left-nav" aria-label="Account navigation"><strong>{accountName}</strong><nav>
+          <button type="button" aria-current={activeView==='overview'?'page':undefined} onClick={()=>setActiveView('overview')}>Home</button>
+          <button type="button" aria-current={activeView==='quotes'?'page':undefined} onClick={()=>setActiveView('quotes')}>Quotes</button>
+          <button type="button" aria-current={['profile','billing','locations'].includes(activeView)?'page':undefined} onClick={()=>setActiveView('profile')}>Company</button>
+          <Link to="/contact?need=Account%20correction">Contact NexGen</Link>
+        </nav><div className="portal-company-nav"><button type="button" onClick={()=>setActiveView('billing')}>Billing preferences</button><button type="button" onClick={()=>setActiveView('locations')}>Delivery locations</button></div></aside>
+        <div className="portal-account-main">
+        {syncStatus === 'loading' && <PortalSkeleton />}
+        {syncStatus === 'offline' && <PortalError message="Your account could not be refreshed. Check your connection and retry." onRetry={onRefreshAccount} />}
+        {removed && <div className="account-undo" role="status">Removed {removed.item.label}. <button type="button" disabled={saving} onClick={() => void undoRemove()}>Undo</button></div>}
         {(saving || saved) && <p className="account-save-status" role="status">{saving ? 'Saving…' : 'Saved to your NexGen account.'}</p>}
         {activeView === 'overview' && (
           <>
@@ -265,44 +265,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
               <button type="button" onClick={() => setActiveView('profile')}>View details</button>
             </section>
 
-            <div className="account-home-grid">
-              <section className="account-group" aria-labelledby="account-requests-heading">
-                <h2 id="account-requests-heading">Quotes & support</h2>
-                <AccountMenuRow
-                  icon={<ReceiptText size={21} />}
-                  title="My quote requests"
-                  description={quoteRequests.length ? `${quoteRequests.length} recent request${quoteRequests.length === 1 ? '' : 's'}` : 'Track requests for pricing'}
-                  onClick={() => setActiveView('quotes')}
-                />
-                <a className="account-menu-row" href="mailto:orders@nexgenpac.com">
-                  <span className="account-menu-icon"><Mail size={21} /></span>
-                  <span><strong>Contact NexGen</strong><small>Questions about a quote or your account</small></span>
-                  <ArrowRight size={20} aria-hidden="true" />
-                </a>
-              </section>
-
-              <section className="account-group" aria-labelledby="account-settings-heading">
-                <h2 id="account-settings-heading">Account settings</h2>
-                <AccountMenuRow
-                  icon={<ReceiptText size={21} />}
-                  title="Billing preferences"
-                  description={currentAccount.billingProfiles.length ? `${currentAccount.billingProfiles.length} billing profile${currentAccount.billingProfiles.length === 1 ? '' : 's'}` : 'Billing contacts and purchasing preferences'}
-                  onClick={() => setActiveView('billing')}
-                />
-                <AccountMenuRow
-                  icon={<MapPin size={21} />}
-                  title="Delivery locations"
-                  description={currentAccount.receivingLocations.length ? `${currentAccount.receivingLocations.length} saved location${currentAccount.receivingLocations.length === 1 ? '' : 's'}` : 'Addresses and receiving instructions'}
-                  onClick={() => setActiveView('locations')}
-                />
-                <AccountMenuRow
-                  icon={<UserRound size={21} />}
-                  title="Company details"
-                  description={currentAccount.companyName ? currentAccount.companyName : 'Company and contact information'}
-                  onClick={() => setActiveView('profile')}
-                />
-              </section>
-            </div>
+            <PortalHome account={account} requests={quoteRequests} status={quoteRequestsStatus} error={quoteRequestsError} refresh={onRefreshQuoteRequests} token={token} onRequestAgain={onRequestAgain}/>
           </>
         )}
 
@@ -312,7 +275,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
               title="Company details"
               description="Company and primary contact details are maintained by the NexGen team."
               onBack={returnToAccount}
-              action={<a className="account-primary-action" href="mailto:orders@nexgenpac.com?subject=Customer%20account%20correction">Request a correction</a>}
+              action={<Link className="account-primary-action" to="/contact?need=Account%20correction">Request a correction</Link>}
             />
             {saveErrorNotice}
             <section className="account-content-card">
@@ -335,50 +298,8 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
               onBack={returnToAccount}
               action={<Link className="account-primary-action" to="/products"><Plus size={17} /> New request</Link>}
             />
-            {new URLSearchParams(location.search).get('request') ? <CustomerQuoteDetail token={token} requestNumber={new URLSearchParams(location.search).get('request')!} refresh={quoteRequests} /> : <section className="account-content-card" aria-label="Quote request history">
-              <button type="button" onClick={onRefreshQuoteRequests} disabled={quoteRequestsStatus === 'loading'}>{quoteRequestsStatus === 'loading' ? 'Refreshing…' : 'Refresh requests'}</button>
-              {quoteRequestsStatus === 'loading' && !quoteRequests.length ? (
-                <div className="account-empty-state"><ReceiptText size={30} /><strong>Loading quote requests…</strong></div>
-              ) : quoteRequestsStatus === 'error' && !quoteRequests.length ? (
-                <div className="account-empty-state" role="alert">
-                  <ReceiptText size={30} />
-                  <strong>Could not load quote requests</strong>
-                  <span>{quoteRequestsError}</span>
-                  <button type="button" onClick={onRefreshQuoteRequests}>Try again</button>
-                </div>
-              ) : quoteRequests.length === 0 ? (
-                <div className="account-empty-state">
-                  <ReceiptText size={30} />
-                  <strong>No quote requests yet</strong>
-                  <span>Requests submitted through this website appear here.</span>
-                  <Link to="/products">Browse products <ArrowRight size={16} /></Link>
-                </div>
-              ) : (
-                <div className="account-quote-list">
-                  {quoteRequestsStatus === 'error' ? <p className="account-quote-error" role="alert">{quoteRequestsError} Showing the last loaded list. <button type="button" onClick={onRefreshQuoteRequests}>Try again</button></p> : null}
-                  {quoteRequests.map((request) => (
-                    <article className="account-quote-summary" key={request.requestNumber}>
-                      <div className="account-quote-summary-header">
-                        <div>
-                          <Link to={`/account?view=quotes&request=${encodeURIComponent(request.requestNumber)}`}>{request.requestNumber}</Link>
-                          <small>Submitted {formatAccountDate(request.submittedAt)}</small>
-                        </div>
-                        <span className="account-quote-status">{customerStatus(request.status)}</span>
-                      </div>
-                      <ul>
-                        {request.items.map((item, index) => (
-                          <li key={`${item.sku}-${index}`}>
-                            <span>{item.sku ? `Item ${item.sku} · ` : ''}{item.productName}<small>{[item.size, item.material, item.printColors ? `${item.printColors}-color printing` : 'Unprinted', item.artworkName].filter(Boolean).join(' · ')}</small></span>
-                            <strong>{item.cases} case{item.cases === 1 ? '' : 's'}</strong>
-                          </li>
-                        ))}
-                      </ul>
-                      {request.issuedQuoteNumber ? <p>Issued quote <strong>{request.issuedQuoteNumber}</strong></p> : <p>NexGen will provide pricing when your quote is ready.</p>}
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>}
+            {new URLSearchParams(location.search).get('request') ? <CustomerQuoteDetail token={token} requestNumber={new URLSearchParams(location.search).get('request')!} refresh={quoteRequests} onRequestAgain={onRequestAgain} /> : <PortalQuoteList requests={quoteRequests} status={quoteRequestsStatus} error={quoteRequestsError} refresh={onRefreshQuoteRequests}/>}
+
           </>
         )}
 
@@ -416,7 +337,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
                       <div className="account-record-actions">
                       <button className="account-edit-button" type="button" aria-label={`Edit ${profile.label}`} disabled={saving} onClick={() => { setEditingBillingId(profile.id); setBillingForm({label:profile.label,legalName:profile.legalName,billingEmail:profile.billingEmail,preference:profile.preference}); setShowBillingForm(true) }}><Pencil size={16} /></button>
                       {!profile.isDefault && <button type="button" disabled={saving} onClick={() => updateDraft(current => ({...current,billingProfiles:current.billingProfiles.map(item => ({...item,isDefault:item.id === profile.id}))}))}>Make default</button>}
-                      <button className="account-remove-button" disabled={saving} type="button" aria-label={`Remove ${profile.label}`} onClick={() => updateDraft((current) => ({ ...current, billingProfiles: current.billingProfiles.filter((item) => item.id !== profile.id) }))}><Trash2 size={17} /></button></div>
+                      <button className="account-remove-button" disabled={saving} type="button" aria-label={`Remove ${profile.label}`} onClick={() => void removePreference('billing',profile.id)}><Trash2 size={17} /></button></div>
                     </div>
                   ))}
                   {currentAccount.billingProfiles.length === 0 ? <p className="account-inline-empty">No billing profiles saved.</p> : null}
@@ -469,7 +390,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
                     <div className="account-record-actions">
                       {!location.isDefault && <button type="button" disabled={saving} onClick={() => updateDraft(current => ({...current,receivingLocations:current.receivingLocations.map(item => ({...item,isDefault:item.id === location.id}))}))}>Make default</button>}
                       <button className="account-edit-button" disabled={saving} type="button" aria-label={`Edit ${location.label}`} onClick={() => startEditingLocation(location)}><Pencil size={16} /></button>
-                      <button className="account-remove-button" disabled={saving} type="button" aria-label={`Remove ${location.label}`} onClick={() => updateDraft((current) => ({ ...current, receivingLocations: current.receivingLocations.filter((item) => item.id !== location.id) }))}><Trash2 size={17} /></button>
+                      <button className="account-remove-button" disabled={saving} type="button" aria-label={`Remove ${location.label}`} onClick={() => void removePreference('location',location.id)}><Trash2 size={17} /></button>
                     </div>
                   </div>
                 ))}
@@ -478,6 +399,7 @@ export function CustomerAccountPage({ account, token, quoteRequests, quoteReques
             </section>
           </>
         )}
+        </div>
       </div>
     </section>
   )

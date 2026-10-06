@@ -1,3 +1,5 @@
+import { RequestActions } from './PortalFeedback'
+import { portalConfig } from './portalPresentation'
 import type { FormEvent } from 'react'
 import { Check, ChevronRight, FileImage, Mail, Minus, PackageOpen, Plus, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -16,6 +18,7 @@ type CartPageProps = {
   contact: QuoteContact
   requestReady: boolean
   requestNumber: string
+  onRequestAgain: (request: QuoteReceipt) => void
   receipt: QuoteReceipt | null
   requestLoading: boolean
   requestError: string
@@ -34,6 +37,7 @@ export function CartPage({
   requestReady,
   requestNumber,
   receipt,
+  onRequestAgain,
   requestLoading,
   requestError,
   onContactChange,
@@ -48,16 +52,16 @@ export function CartPage({
       <div className="cart-page-shell">
         <header className="cart-page-header">
           <p className="eyebrow">Quote builder</p>
-          <h1>Your cart</h1>
-          <p>Review quantities and specifications, then send the completed list to NexGen for pricing.</p>
+          <h1>{requestReady ? 'Quote request received' : 'Your cart'}</h1>
+          <p>{requestReady ? 'Your request is with NexGen for review.' : 'Review quantities and specifications, then send the completed list to NexGen for pricing.'}</p>
         </header>
 
         {requestReady && requestNumber ? (
           <section className="cart-page-empty" role="status">
             <Check size={36} />
-            <h2>Quote request received</h2>
+            <h2>Request {requestNumber}</h2>
             <p>Request <strong>{requestNumber}</strong> is with NexGen for review. You can track its status in your account.</p>
-            {receipt && <QuoteRequestSummary request={receipt} />}
+            {receipt && <><QuoteRequestSummary request={receipt} /><RequestActions request={receipt} onRequestAgain={onRequestAgain} /></>}
             <Link className="primary-button" to={`/account?view=quotes&request=${encodeURIComponent(requestNumber)}`}>Track your request <ChevronRight size={17} /></Link>
           </section>
         ) : items.length === 0 ? (
@@ -178,7 +182,7 @@ export function CartPage({
 
                 {shipping && <div className="quote-address-preview" aria-label="Selected delivery location"><strong>{shipping.label}</strong><span>{shipping.address}, {shipping.city}, {shipping.state} {shipping.postalCode}</span><span>{[shipping.contact, shipping.phone, shipping.receivingHours, shipping.instructions].filter(Boolean).join(' · ')}</span></div>}
                 {!account.receivingLocations.length && <><p><Link to="/account?view=locations">Add a delivery location</Link>, or provide a ZIP code for this quote.</p><label>Delivery ZIP / postal code<input required autoComplete="postal-code" value={contact.postalCode} onChange={event => onContactChange('postalCode',event.target.value)} /></label></>}
-                <p>We follow up within 1 business day.</p>
+                <p>{portalConfig.responsePromise}</p>
                 <label className="quote-request-notes">Notes <span>Optional</span><textarea rows={3} value={contact.notes} onChange={(event) => onContactChange('notes', event.target.value)} /></label>
 
                 {requestError ? <p className="quote-request-error" role="alert">{requestError}</p> : null}
