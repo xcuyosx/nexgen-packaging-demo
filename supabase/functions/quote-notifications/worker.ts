@@ -67,7 +67,7 @@ export async function buildQuoteMail(job: QuoteJob, store: QuoteStore): Promise<
       if (!new RegExp(`^${q.user_id}/${job.request_id}/${uuid}\\.(png|jpe?g|webp|svg|pdf|ai|eps)$`, 'i').test(path)) throw new InvalidJob('Artwork ownership mismatch')
       paths.push(path)
     }
-    return `${index + 1}. ${text(line.productName)} | SKU: ${text(line.sku)} | Cases: ${text(line.cases)}\n`
+    return `${index + 1}. ${text(line.productName)}${text(line.sku) ? ` | Item: ${text(line.sku)}` : ''} | Cases: ${text(line.cases)}\n`
       + `Size: ${text(line.size)} | Material: ${text(line.material)} | Dimensions: ${text(line.dimensions)} | Case pack: ${text(line.casePack)}\n`
       + `Print colors: ${text(line.printColors)} | Inks: ${Array.isArray(line.inkColors) ? line.inkColors.map(text).join(', ') : ''}\n`
       + `Artwork: ${[text(line.artworkName), ...additional.map(value => text((value as Record<string,unknown>).name))].filter(Boolean).join(', ') || 'None'}`

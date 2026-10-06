@@ -55,6 +55,7 @@ import {
   emptyCustomerAccount,
   fetchCustomerAccountSync,
   fetchCustomerQuoteHistory,
+  fetchCustomerQuoteDetail,
   loadCustomerSession,
   loadCustomerAccount,
   loadCustomerOrders,
@@ -581,7 +582,10 @@ function App() {
         artworkFiles: cartDetails.flatMap((item, lineIndex) => [...(item.artworkFile ? [{ lineIndex, file: item.artworkFile }] : []), ...(item.additionalArtworkFiles || []).map((file, attachmentIndex) => ({lineIndex,file,attachmentIndex}))]),
       }
       const result = await submitCustomerQuoteRequest(customerSession.token, request)
-      setQuoteReceipt({ ...request, requestNumber: result.requestNumber, submittedAt: new Date().toISOString() })
+      // A successful submission stays successful even if the receipt refresh fails.
+      // Never echo the raw cart identity: the server returns the public whitelist.
+      const receipt=await fetchCustomerQuoteDetail(customerSession.token,result.requestNumber).catch(()=>null)
+      setQuoteReceipt(receipt)
       setQuoteRequestNumber(result.requestNumber)
       setQuoteRequestReady(true)
       setCart([])
